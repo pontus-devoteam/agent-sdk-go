@@ -12,7 +12,7 @@ func TestNewFunctionTool(t *testing.T) {
 	// Create a new function tool
 	name := "test_tool"
 	description := "Test tool for testing"
-	
+
 	testTool := tool.NewFunctionTool(
 		name,
 		description,
@@ -48,12 +48,12 @@ func TestFunctionToolExecution(t *testing.T) {
 			if !ok {
 				t.Fatalf("Parameter 'a' is not a float64")
 			}
-			
+
 			b, ok := params["b"].(float64)
 			if !ok {
 				t.Fatalf("Parameter 'b' is not a float64")
 			}
-			
+
 			return a + b, nil
 		},
 	)
@@ -95,11 +95,11 @@ func TestWithSchema(t *testing.T) {
 		"type": "object",
 		"properties": map[string]interface{}{
 			"name": map[string]interface{}{
-				"type": "string",
+				"type":        "string",
 				"description": "The name parameter",
 			},
 			"age": map[string]interface{}{
-				"type": "integer",
+				"type":        "integer",
 				"description": "The age parameter",
 			},
 		},
@@ -156,7 +156,7 @@ func TestToOpenAITool(t *testing.T) {
 		"type": "object",
 		"properties": map[string]interface{}{
 			"query": map[string]interface{}{
-				"type": "string",
+				"type":        "string",
 				"description": "The search query",
 			},
 		},
@@ -273,4 +273,4 @@ func TestToOpenAITools(t *testing.T) {
 	if !ok || name != "tool2" {
 		t.Errorf("Second tool name = %v, want 'tool2'", name)
 	}
-} 
+}

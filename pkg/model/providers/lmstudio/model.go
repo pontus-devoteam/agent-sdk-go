@@ -1,13 +1,13 @@
 package lmstudio
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"bufio"
 	"strings"
 
 	"golang.org/x/text/cases"
@@ -27,74 +27,74 @@ type LMStudioModel struct {
 
 // ChatMessage represents a message in a chat
 type ChatMessage struct {
-	Role     string                   `json:"role"`
-	Content  string                   `json:"content,omitempty"`
-	Name     string                   `json:"name,omitempty"`
-	ToolCalls []ChatMessageToolCall   `json:"tool_calls,omitempty"`
+	Role      string                `json:"role"`
+	Content   string                `json:"content,omitempty"`
+	Name      string                `json:"name,omitempty"`
+	ToolCalls []ChatMessageToolCall `json:"tool_calls,omitempty"`
 }
 
 // ChatMessageToolCall represents a tool call in a chat message
 type ChatMessageToolCall struct {
-	ID       string                   `json:"id"`
-	Type     string                   `json:"type"`
+	ID       string                      `json:"id"`
+	Type     string                      `json:"type"`
 	Function ChatMessageToolCallFunction `json:"function"`
 }
 
 // ChatMessageToolCallFunction represents a function in a tool call
 type ChatMessageToolCallFunction struct {
-	Name      string                  `json:"name"`
-	Arguments string                  `json:"arguments"`
+	Name      string `json:"name"`
+	Arguments string `json:"arguments"`
 }
 
 // ChatTool represents a tool in a chat
 type ChatTool struct {
-	Type     string                   `json:"type"`
-	Function ChatToolFunction         `json:"function"`
+	Type     string           `json:"type"`
+	Function ChatToolFunction `json:"function"`
 }
 
 // ChatToolFunction represents a function in a tool
 type ChatToolFunction struct {
-	Name        string                `json:"name"`
-	Description string                `json:"description"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
 	Parameters  map[string]interface{} `json:"parameters"`
 }
 
 // ChatCompletionRequest represents a request to the chat completions API
 type ChatCompletionRequest struct {
-	Model             string                `json:"model"`
-	Messages          []ChatMessage         `json:"messages"`
-	Tools             []ChatTool            `json:"tools,omitempty"`
-	ToolChoice        interface{}           `json:"tool_choice,omitempty"`
-	Temperature       float64               `json:"temperature,omitempty"`
-	TopP              float64               `json:"top_p,omitempty"`
-	FrequencyPenalty  float64               `json:"frequency_penalty,omitempty"`
-	PresencePenalty   float64               `json:"presence_penalty,omitempty"`
-	MaxTokens         int                   `json:"max_tokens,omitempty"`
-	Stream            bool                  `json:"stream,omitempty"`
+	Model            string        `json:"model"`
+	Messages         []ChatMessage `json:"messages"`
+	Tools            []ChatTool    `json:"tools,omitempty"`
+	ToolChoice       interface{}   `json:"tool_choice,omitempty"`
+	Temperature      float64       `json:"temperature,omitempty"`
+	TopP             float64       `json:"top_p,omitempty"`
+	FrequencyPenalty float64       `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float64       `json:"presence_penalty,omitempty"`
+	MaxTokens        int           `json:"max_tokens,omitempty"`
+	Stream           bool          `json:"stream,omitempty"`
 }
 
 // ChatCompletionResponse represents a response from the chat completions API
 type ChatCompletionResponse struct {
-	ID      string                    `json:"id"`
-	Object  string                    `json:"object"`
-	Created int64                     `json:"created"`
-	Model   string                    `json:"model"`
-	Choices []ChatCompletionChoice    `json:"choices"`
-	Usage   ChatCompletionUsage       `json:"usage"`
+	ID      string                 `json:"id"`
+	Object  string                 `json:"object"`
+	Created int64                  `json:"created"`
+	Model   string                 `json:"model"`
+	Choices []ChatCompletionChoice `json:"choices"`
+	Usage   ChatCompletionUsage    `json:"usage"`
 }
 
 // ChatCompletionChoice represents a choice in a chat completion response
 type ChatCompletionChoice struct {
-	Index        int                  `json:"index"`
-	Message      ChatMessage          `json:"message"`
-	FinishReason string               `json:"finish_reason"`
+	Index        int         `json:"index"`
+	Message      ChatMessage `json:"message"`
+	FinishReason string      `json:"finish_reason"`
 }
 
 // ChatCompletionUsage represents usage information in a chat completion response
 type ChatCompletionUsage struct {
-	PromptTokens     int              `json:"prompt_tokens"`
-	CompletionTokens int              `json:"completion_tokens"`
-	TotalTokens      int              `json:"total_tokens"`
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
 }
 
 // GetResponse gets a single response from the model
@@ -201,7 +201,10 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 
 	// Check for errors
 	if httpResponse.StatusCode != http.StatusOK {
-		httpResponse.Body.Close()
+		err := httpResponse.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("failed to close response body: %w (original status code: %d)", err, httpResponse.StatusCode)
+		}
 		return nil, m.handleError(httpResponse)
 	}
 
@@ -212,33 +215,33 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 
 		// Create a scanner to read the response line by line
 		scanner := bufio.NewScanner(httpResponse.Body)
-		
+
 		// Variables to accumulate the response
 		var content string
 		var toolCalls []model.ToolCall
-		
+
 		// Process each line
 		for scanner.Scan() {
 			line := scanner.Text()
-			
+
 			// Skip empty lines
 			if line == "" {
 				continue
 			}
-			
+
 			// Skip lines that don't start with "data: "
 			if !strings.HasPrefix(line, "data: ") {
 				continue
 			}
-			
+
 			// Extract the data
 			data := strings.TrimPrefix(line, "data: ")
-			
+
 			// Check if this is the end of the stream
 			if data == "[DONE]" {
 				break
 			}
-			
+
 			// Parse the data as JSON
 			var chunk struct {
 				Choices []struct {
@@ -257,18 +260,18 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 					FinishReason string `json:"finish_reason"`
 				} `json:"choices"`
 			}
-			
+
 			if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 				eventChan <- model.StreamEvent{
 					Error: fmt.Errorf("failed to parse chunk: %w", err),
 				}
 				return
 			}
-			
+
 			// Process the chunk
 			if len(chunk.Choices) > 0 {
 				choice := chunk.Choices[0]
-				
+
 				// Process content
 				if choice.Delta.Content != "" {
 					content += choice.Delta.Content
@@ -277,7 +280,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 						Content: choice.Delta.Content,
 					}
 				}
-				
+
 				// Process tool calls
 				if len(choice.Delta.ToolCalls) > 0 {
 					for _, tc := range choice.Delta.ToolCalls {
@@ -289,12 +292,12 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 								Parameters: make(map[string]interface{}),
 							})
 						}
-						
+
 						// Update the tool call
 						if tc.Function.Name != "" {
 							toolCalls[tc.Index].Name = tc.Function.Name
 						}
-						
+
 						if tc.Function.Arguments != "" {
 							// Try to parse the arguments
 							var args map[string]interface{}
@@ -307,7 +310,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 								// If we can't parse the arguments as JSON, use them as a string
 								toolCalls[tc.Index].Parameters["raw_arguments"] = tc.Function.Arguments
 							}
-							
+
 							// Send a tool call event
 							eventChan <- model.StreamEvent{
 								Type:     model.StreamEventTypeToolCall,
@@ -316,7 +319,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 						}
 					}
 				}
-				
+
 				// Check if we're done
 				if choice.FinishReason != "" {
 					eventChan <- model.StreamEvent{
@@ -330,7 +333,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 				}
 			}
 		}
-		
+
 		// Check for scanner errors
 		if err := scanner.Err(); err != nil {
 			eventChan <- model.StreamEvent{
@@ -376,12 +379,12 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 						Role:    message["role"].(string),
 						Content: message["content"].(string),
 					}
-					
+
 					// Add name if provided
 					if name, ok := message["name"].(string); ok && name != "" {
 						chatMessage.Name = name
 					}
-					
+
 					chatRequest.Messages = append(chatRequest.Messages, chatMessage)
 				} else if message["type"] == "tool_result" {
 					// Handle tool results
@@ -390,18 +393,18 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 						// Skip invalid tool results
 						continue
 					}
-					
+
 					toolCall, ok := message["tool_call"].(map[string]interface{})
 					if !ok || toolCall == nil {
 						// Skip invalid tool calls
 						continue
 					}
-					
+
 					// Create a tool result message
-					content := fmt.Sprintf("Tool '%s' returned: %v", 
-						toolCall["name"].(string), 
+					content := fmt.Sprintf("Tool '%s' returned: %v",
+						toolCall["name"].(string),
 						toolResult["content"])
-					
+
 					chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
 						Role:    "tool",
 						Content: content,
@@ -419,16 +422,16 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 		if len(request.Handoffs) > 0 {
 			capacity += len(request.Handoffs)
 		}
-		
+
 		chatRequest.Tools = make([]ChatTool, 0, capacity)
-		
+
 		// First add regular tools
 		for _, tool := range request.Tools {
 			// Convert the tool to a chat tool
 			var name string
 			var description string
 			var parameters map[string]interface{}
-			
+
 			// Check if the tool is already in OpenAI format, a map[string]interface{}, or implements the Tool interface
 			if openAITool, ok := tool.(map[string]interface{}); ok {
 				// Check if this is an OpenAI-compatible tool definition
@@ -449,7 +452,7 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 				}
 			} else if tool != nil {
 				// Tool implements the interface, call methods
-				toolInterface := tool.(interface{
+				toolInterface := tool.(interface {
 					GetName() string
 					GetDescription() string
 					GetParametersSchema() map[string]interface{}
@@ -461,7 +464,7 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 				// Skip nil tools
 				continue
 			}
-			
+
 			chatTool := ChatTool{
 				Type: "function",
 				Function: ChatToolFunction{
@@ -470,18 +473,18 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 					Parameters:  parameters,
 				},
 			}
-			
+
 			chatRequest.Tools = append(chatRequest.Tools, chatTool)
 		}
-		
-		// Then add handoff tools 
+
+		// Then add handoff tools
 		for _, handoff := range request.Handoffs {
 			// Convert the handoff to a chat tool
 			if handoffTool, ok := handoff.(map[string]interface{}); ok {
 				// It's already in the right format
 				if handoffTool["type"] == "function" && handoffTool["function"] != nil {
 					function := handoffTool["function"].(map[string]interface{})
-					
+
 					chatTool := ChatTool{
 						Type: "function",
 						Function: ChatToolFunction{
@@ -490,7 +493,7 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 							Parameters:  function["parameters"].(map[string]interface{}),
 						},
 					}
-					
+
 					chatRequest.Tools = append(chatRequest.Tools, chatTool)
 					fmt.Printf("Added handoff tool to request: %s\n", function["name"].(string))
 				}
@@ -598,7 +601,7 @@ func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*mo
 						inputBytes, _ := json.Marshal(inputMap)
 						input = string(inputBytes)
 					}
-					
+
 					response.HandoffCall = &model.HandoffCall{
 						AgentName: agentName,
 						Input:     input,
@@ -609,12 +612,12 @@ func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*mo
 				// It might be trying to call an agent directly
 				possibleAgentName := strings.Replace(strings.ToLower(toolCall.Function.Name), "_agent", " agent", -1)
 				possibleAgentName = cases.Title(language.Und, cases.NoLower).String(possibleAgentName)
-				
+
 				// Only use this heuristic if the name ends with "Agent"
 				if strings.HasSuffix(possibleAgentName, "Agent") {
 					// Generate an input from all the arguments
 					inputBytes, _ := json.Marshal(args)
-					
+
 					response.HandoffCall = &model.HandoffCall{
 						AgentName: possibleAgentName,
 						Input:     string(inputBytes),

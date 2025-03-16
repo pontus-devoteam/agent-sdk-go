@@ -75,4 +75,4 @@ func (h *DefaultAgentHooks) OnAfterHandoff(ctx context.Context, agent *Agent, ha
 // OnAgentEnd is called when the agent finishes processing
 func (h *DefaultAgentHooks) OnAgentEnd(ctx context.Context, agent *Agent, result interface{}) error {
 	return nil
-} 
+}

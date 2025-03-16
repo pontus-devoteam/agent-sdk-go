@@ -52,18 +52,18 @@ func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest
 			if !ok {
 				continue
 			}
-			
+
 			functionMap, ok := toolMap["function"].(map[string]interface{})
 			if !ok {
 				continue
 			}
-			
+
 			if name, ok := functionMap["name"].(string); ok && name == "add" {
 				foundAddTool = true
 				break
 			}
 		}
-		
+
 		if foundAddTool {
 			return &model.ModelResponse{
 				Content: "I'll calculate that for you.",
@@ -103,14 +103,14 @@ func (m *MockModel) StreamResponse(ctx context.Context, request *model.ModelRequ
 	go func() {
 		defer close(eventCh)
 		resp, _ := m.GetResponse(ctx, request)
-		
+
 		if resp.Content != "" {
 			eventCh <- model.StreamEvent{
 				Type:    model.StreamEventTypeContent,
 				Content: resp.Content,
 			}
 		}
-		
+
 		if len(resp.ToolCalls) > 0 {
 			for _, call := range resp.ToolCalls {
 				eventCh <- model.StreamEvent{
@@ -119,7 +119,7 @@ func (m *MockModel) StreamResponse(ctx context.Context, request *model.ModelRequ
 				}
 			}
 		}
-		
+
 		eventCh <- model.StreamEvent{
 			Type:     model.StreamEventTypeDone,
 			Response: resp,
@@ -292,4 +292,4 @@ import (
 func TestBasicSimpleAgent(t *testing.T) {
 	// This test just ensures the package compiles
 	// Actual simple agent tests will be added in a future PR
-} 
+}

@@ -102,4 +102,4 @@ func (p *LMStudioProvider) GetModel(name string) (model.Model, error) {
 // NewProvider creates a new LM Studio provider with default settings
 func NewProvider() *LMStudioProvider {
 	return NewLMStudioProvider(DefaultBaseURL)
-} 
+}

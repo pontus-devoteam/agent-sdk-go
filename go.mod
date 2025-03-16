@@ -1,8 +1,6 @@
 module github.com/pontus-devoteam/agent-sdk-go
 
-go 1.23.0
-
-toolchain go1.24.0
+go 1.23
 
 replace github.com/pontus-devoteam/agent-sdk-go => ./
 

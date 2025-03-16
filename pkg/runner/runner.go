@@ -261,7 +261,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 			var content string
 			var toolCalls []model.ToolCall
 			var handoffCall *model.HandoffCall
-			
+
 			for event := range modelStream {
 				// Check for errors
 				if event.Error != nil {
@@ -277,26 +277,26 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 				case model.StreamEventTypeContent:
 					// Append to content
 					content += event.Content
-					
+
 					// Forward the event
 					eventCh <- event
-					
+
 				case model.StreamEventTypeToolCall:
 					// Add to tool calls
 					if event.ToolCall != nil {
 						toolCalls = append(toolCalls, *event.ToolCall)
 					}
-					
+
 					// Forward the event
 					eventCh <- event
-					
+
 				case model.StreamEventTypeHandoff:
 					// Set handoff call
 					handoffCall = event.HandoffCall
-					
+
 					// Forward the event
 					eventCh <- event
-					
+
 				case model.StreamEventTypeDone:
 					// Create the final response
 					response := &model.ModelResponse{
@@ -305,7 +305,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 						HandoffCall: handoffCall,
 						Usage:       nil, // Usage not available in streaming
 					}
-					
+
 					// Call agent hooks if provided
 					if currentAgent.Hooks != nil {
 						if err := currentAgent.Hooks.OnAfterModelCall(ctx, currentAgent, response); err != nil {
@@ -322,7 +322,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 					if currentAgent.OutputType != nil {
 						// TODO: Implement structured output parsing
 						streamedResult.RunResult.FinalOutput = content
-						
+
 						// Call hooks if provided
 						if opts.Hooks != nil {
 							turnResult := &SingleTurnResult{
@@ -338,17 +338,17 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 								return
 							}
 						}
-						
+
 						// Send done event
 						eventCh <- model.StreamEvent{
 							Type:     model.StreamEventTypeDone,
 							Response: response,
 						}
-						
+
 						// Mark as complete
 						streamedResult.IsComplete = true
 						streamedResult.RunResult.LastAgent = currentAgent
-						
+
 						// Call agent hooks if provided
 						if agent.Hooks != nil {
 							if err := agent.Hooks.OnAgentEnd(ctx, agent, streamedResult.RunResult.FinalOutput); err != nil {
@@ -359,7 +359,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 								return
 							}
 						}
-						
+
 						// Call hooks if provided
 						if opts.Hooks != nil {
 							if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
@@ -370,7 +370,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 								return
 							}
 						}
-						
+
 						return
 					}
 
@@ -463,7 +463,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 						// Make sure we exit the loop by returning here
 						streamedResult.IsComplete = true
 						streamedResult.RunResult.LastAgent = currentAgent
-						
+
 						// Call agent hooks if provided
 						if agent.Hooks != nil {
 							if err := agent.Hooks.OnAgentEnd(ctx, agent, streamedResult.RunResult.FinalOutput); err != nil {
@@ -474,7 +474,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 								return
 							}
 						}
-						
+
 						// Call hooks if provided
 						if opts.Hooks != nil {
 							if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
@@ -485,7 +485,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 								return
 							}
 						}
-						
+
 						return
 					}
 
@@ -513,9 +513,9 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions) (*result.RunResult, error) {
 	// Initialize result
 	runResult := &result.RunResult{
-		Input:      input,
-		NewItems:   make([]result.RunItem, 0),
-		LastAgent:  agent,
+		Input:       input,
+		NewItems:    make([]result.RunItem, 0),
+		LastAgent:   agent,
 		FinalOutput: nil,
 	}
 
@@ -528,15 +528,19 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 		} else {
 			// Add tracer to context
 			ctx = tracing.WithTracer(ctx, tracer)
-			
+
 			// Record agent start event
 			tracing.AgentStart(ctx, agent.Name, input)
-			
+
 			// Ensure tracer is closed when done
 			defer func() {
 				tracing.AgentEnd(ctx, agent.Name, runResult.FinalOutput)
-				tracer.Flush()
-				tracer.Close()
+				if err := tracer.Flush(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error flushing tracer: %v\n", err)
+				}
+				if err := tracer.Close(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error closing tracer: %v\n", err)
+				}
 			}()
 		}
 	}
@@ -639,7 +643,7 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 		if currentAgent.OutputType != nil {
 			// TODO: Implement structured output parsing
 			runResult.FinalOutput = response.Content
-			
+
 			// Call hooks if provided
 			if opts.Hooks != nil {
 				turnResult := &SingleTurnResult{
@@ -651,7 +655,7 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 					return nil, fmt.Errorf("turn end hook error: %w", err)
 				}
 			}
-			
+
 			break
 		}
 
@@ -740,7 +744,7 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 
 					// Execute the tool
 					toolResult, err := toolToCall.Execute(ctx, tc.Parameters)
-					
+
 					// Record tool result event
 					tracing.ToolResult(ctx, currentAgent.Name, tc.Name, toolResult, err)
 
@@ -773,8 +777,8 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 					toolResults = append(toolResults, map[string]interface{}{
 						"type": "tool_result",
 						"tool_call": map[string]interface{}{
-							"name": tc.Name,
-							"id": fmt.Sprintf("call_%d_%d", turn, len(toolResults)),
+							"name":       tc.Name,
+							"id":         fmt.Sprintf("call_%d_%d", turn, len(toolResults)),
 							"parameters": tc.Parameters,
 						},
 						"tool_result": map[string]interface{}{
@@ -822,7 +826,7 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 						}
 						toolCallsDescription = fmt.Sprintf("You called these tools: %s", strings.Join(toolNames, ", "))
 					}
-					
+
 					inputList = append(inputList, map[string]interface{}{
 						"type":    "message",
 						"role":    "assistant",
@@ -920,13 +924,13 @@ func (r *Runner) prepareTools(tools []tool.Tool) []interface{} {
 
 	// Convert tools to the OpenAI format using the utility function
 	openAITools := tool.ToOpenAITools(tools)
-	
+
 	// Convert to []interface{} for compatibility with the ModelRequest
 	result := make([]interface{}, len(openAITools))
 	for i, t := range openAITools {
 		result[i] = t
 	}
-	
+
 	return result
 }
 
@@ -934,58 +938,58 @@ func (r *Runner) prepareTools(tools []tool.Tool) []interface{} {
 func (r *Runner) prepareOutputSchema(outputType reflect.Type) interface{} {
 	// If no output type, return nil
 	if outputType == nil {
-	return nil
+		return nil
 	}
 
 	// Create a schema for the output type
 	schema := map[string]interface{}{
-		"type": "object",
+		"type":       "object",
 		"properties": make(map[string]interface{}),
-		"required": []string{},
+		"required":   []string{},
 	}
 
 	// Process each field in the struct
 	for i := 0; i < outputType.NumField(); i++ {
 		field := outputType.Field(i)
-		
+
 		// Skip unexported fields
 		if field.PkgPath != "" {
 			continue
 		}
-		
+
 		// Get the JSON tag
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == "" || jsonTag == "-" {
 			continue
 		}
-		
+
 		// Parse the JSON tag
 		jsonName := strings.Split(jsonTag, ",")[0]
-		
+
 		// Add to required fields if not omitempty
 		if !strings.Contains(jsonTag, "omitempty") {
 			schema["required"] = append(schema["required"].([]string), jsonName)
 		}
-		
+
 		// Get the field schema
 		fieldSchema := r.getFieldSchema(field.Type)
-		
+
 		// Add to properties
 		schema["properties"].(map[string]interface{})[jsonName] = fieldSchema
 	}
-	
+
 	return schema
 }
 
 // getFieldSchema returns the JSON schema for a field type
 func (r *Runner) getFieldSchema(fieldType reflect.Type) map[string]interface{} {
 	schema := make(map[string]interface{})
-	
+
 	// Handle pointers
 	if fieldType.Kind() == reflect.Ptr {
 		fieldType = fieldType.Elem()
 	}
-	
+
 	// Handle different types
 	switch fieldType.Kind() {
 	case reflect.Bool:
@@ -1009,39 +1013,39 @@ func (r *Runner) getFieldSchema(fieldType reflect.Type) map[string]interface{} {
 		schema["type"] = "object"
 		schema["properties"] = make(map[string]interface{})
 		schema["required"] = []string{}
-		
+
 		for i := 0; i < fieldType.NumField(); i++ {
 			field := fieldType.Field(i)
-			
+
 			// Skip unexported fields
 			if field.PkgPath != "" {
 				continue
 			}
-			
+
 			// Get the JSON tag
 			jsonTag := field.Tag.Get("json")
 			if jsonTag == "" || jsonTag == "-" {
 				continue
 			}
-			
+
 			// Parse the JSON tag
 			jsonName := strings.Split(jsonTag, ",")[0]
-			
+
 			// Add to required fields if not omitempty
 			if !strings.Contains(jsonTag, "omitempty") {
 				schema["required"] = append(schema["required"].([]string), jsonName)
 			}
-			
+
 			// Get the field schema
 			fieldSchema := r.getFieldSchema(field.Type)
-			
+
 			// Add to properties
 			schema["properties"].(map[string]interface{})[jsonName] = fieldSchema
 		}
 	default:
 		schema["type"] = "string"
 	}
-	
+
 	return schema
 }
 
@@ -1057,17 +1061,17 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 	result := make([]interface{}, len(handoffs))
 	for i, h := range handoffs {
 		handoffToolName := fmt.Sprintf("handoff_to_%s", h.Name)
-		
+
 		result[i] = map[string]interface{}{
 			"type": "function",
 			"function": map[string]interface{}{
-				"name": handoffToolName,
+				"name":        handoffToolName,
 				"description": fmt.Sprintf("Handoff the conversation to the %s. Use this when a query requires expertise from %s.", h.Name, h.Name),
 				"parameters": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"input": map[string]interface{}{
-							"type": "string",
+							"type":        "string",
 							"description": "The specific request to send to the agent. Be clear about what you're asking the agent to do.",
 						},
 					},
@@ -1075,10 +1079,10 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 				},
 			},
 		}
-		
+
 		// Debug log
 		fmt.Printf("Added handoff tool for agent: %s with name: %s\n", h.Name, handoffToolName)
 	}
 
 	return result
-} 
+}

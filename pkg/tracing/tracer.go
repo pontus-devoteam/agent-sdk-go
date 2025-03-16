@@ -6,62 +6,83 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 // Event types for tracing
 const (
-	EventTypeAgentStart      = "agent_start"
-	EventTypeAgentEnd        = "agent_end"
-	EventTypeToolCall        = "tool_call"
-	EventTypeToolResult      = "tool_result"
-	EventTypeModelRequest    = "model_request"
-	EventTypeModelResponse   = "model_response"
-	EventTypeHandoff         = "handoff"
-	EventTypeAgentMessage    = "agent_message"
-	EventTypeError           = "error"
+	EventTypeAgentStart    = "agent_start"
+	EventTypeAgentEnd      = "agent_end"
+	EventTypeToolCall      = "tool_call"
+	EventTypeToolResult    = "tool_result"
+	EventTypeModelRequest  = "model_request"
+	EventTypeModelResponse = "model_response"
+	EventTypeHandoff       = "handoff"
+	EventTypeAgentMessage  = "agent_message"
+	EventTypeError         = "error"
 )
 
 // Event is a trace event
 type Event struct {
-	Type        string                 `json:"type"`
-	AgentName   string                 `json:"agent_name,omitempty"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Details     map[string]interface{} `json:"details,omitempty"`
-	Error       error                  `json:"error,omitempty"`
+	Type      string                 `json:"type"`
+	AgentName string                 `json:"agent_name,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+	Details   map[string]interface{} `json:"details,omitempty"`
+	Error     error                  `json:"error,omitempty"`
 }
 
 // Tracer is the interface for tracing
 type Tracer interface {
 	// RecordEvent records an event
 	RecordEvent(ctx context.Context, event Event)
-	
+
 	// Flush flushes any buffered events
 	Flush() error
-	
+
 	// Close closes the tracer
 	Close() error
 }
 
 // FileTracer is a tracer that logs to a file
 type FileTracer struct {
-	filePath    string
-	file        *os.File
-	mu          sync.Mutex
+	filePath string
+	file     *os.File
+	mu       sync.Mutex
 }
 
 // NewFileTracer creates a new file tracer
 func NewFileTracer(agentName string) (*FileTracer, error) {
-	// Create file in current directory
-	filePath := filepath.Join(".", fmt.Sprintf("trace_%s.log", agentName))
-	
-	// Open file for writing
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// Sanitize agent name to prevent directory traversal
+	sanitizedName := strings.ReplaceAll(agentName, "/", "_")
+	sanitizedName = strings.ReplaceAll(sanitizedName, "\\", "_")
+	sanitizedName = strings.ReplaceAll(sanitizedName, "..", "_")
+	sanitizedName = strings.ReplaceAll(sanitizedName, ":", "_")
+
+	// Create file in current directory with proper sanitization
+	fileName := fmt.Sprintf("trace_%s.log", sanitizedName)
+
+	// Get absolute path for current directory
+	currentDir, err := filepath.Abs(".")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	// Build and clean the path
+	filePath := filepath.Clean(filepath.Join(currentDir, fileName))
+
+	// Verify path is within the current directory
+	if !strings.HasPrefix(filePath, currentDir) {
+		return nil, fmt.Errorf("invalid file path: path escapes the intended directory")
+	}
+
+	// Open file for writing with more restrictive permissions (0600 instead of 0644)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
-	
+
 	return &FileTracer{
 		filePath: filePath,
 		file:     file,
@@ -72,19 +93,19 @@ func NewFileTracer(agentName string) (*FileTracer, error) {
 func (t *FileTracer) RecordEvent(ctx context.Context, event Event) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	// Set timestamp if not set
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()
 	}
-	
+
 	// Marshal event to JSON
 	data, err := json.Marshal(event)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to marshal event: %v\n", err)
 		return
 	}
-	
+
 	// Write to file
 	if _, err := t.file.Write(append(data, '\n')); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to write event: %v\n", err)
@@ -95,7 +116,7 @@ func (t *FileTracer) RecordEvent(ctx context.Context, event Event) {
 func (t *FileTracer) Flush() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	return t.file.Sync()
 }
 
@@ -103,7 +124,7 @@ func (t *FileTracer) Flush() error {
 func (t *FileTracer) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	
+
 	return t.file.Close()
 }
 
@@ -127,7 +148,7 @@ var globalTracerMu sync.Mutex
 func SetGlobalTracer(tracer Tracer) {
 	globalTracerMu.Lock()
 	defer globalTracerMu.Unlock()
-	
+
 	globalTracer = tracer
 }
 
@@ -135,7 +156,7 @@ func SetGlobalTracer(tracer Tracer) {
 func GetGlobalTracer() Tracer {
 	globalTracerMu.Lock()
 	defer globalTracerMu.Unlock()
-	
+
 	return globalTracer
 }
 
@@ -147,4 +168,4 @@ func RecordEvent(ctx context.Context, event Event) {
 // TraceForAgent creates a tracer for an agent
 func TraceForAgent(agentName string) (Tracer, error) {
 	return NewFileTracer(agentName)
-} 
+}

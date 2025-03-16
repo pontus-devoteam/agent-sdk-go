@@ -53,4 +53,17 @@ test-race:
 # Clean up test artifacts
 .PHONY: clean
 clean:
-	rm -f $(COVERAGE_FILE) 
+	rm -f $(COVERAGE_FILE)
+
+# CI test target with buildvcs=false flag
+ci-test:
+	go test -buildvcs=false -v $(TEST_PACKAGE)
+
+# CI test with race detection
+ci-test-race:
+	go test -buildvcs=false -race -v $(TEST_PACKAGE)
+
+# CI test with coverage
+ci-test-coverage:
+	go test -buildvcs=false -v -coverprofile=coverage.out $(TEST_PACKAGE)
+	go tool cover -func=coverage.out 

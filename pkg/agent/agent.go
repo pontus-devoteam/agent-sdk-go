@@ -39,7 +39,7 @@ func NewAgent(name ...string) *Agent {
 		Tools:    make([]tool.Tool, 0),
 		Handoffs: make([]*Agent, 0),
 	}
-	
+
 	// Set name and instructions if provided
 	if len(name) > 0 {
 		agent.Name = name[0]
@@ -47,7 +47,7 @@ func NewAgent(name ...string) *Agent {
 	if len(name) > 1 {
 		agent.Instructions = name[1]
 	}
-	
+
 	return agent
 }
 
@@ -87,15 +87,15 @@ func (a *Agent) WithHandoffs(handoffs ...*Agent) *Agent {
 func (a *Agent) WithOutputType(outputType interface{}) *Agent {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	
+
 	// Get the type of the output type
 	t := reflect.TypeOf(outputType)
-	
+
 	// If it's a pointer, get the element type
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	
+
 	a.OutputType = t
 	return a
 }
@@ -112,26 +112,26 @@ func (a *Agent) WithHooks(hooks AgentHooks) *Agent {
 func (a *Agent) Clone(overrides map[string]interface{}) *Agent {
 	a.mu.RLock()
 	defer a.mu.RUnlock()
-	
+
 	// Create a new agent with the same properties
 	clone := &Agent{
-		Name:         a.Name,
-		Instructions: a.Instructions,
-		Description:  a.Description,
-		Model:        a.Model,
+		Name:          a.Name,
+		Instructions:  a.Instructions,
+		Description:   a.Description,
+		Model:         a.Model,
 		ModelSettings: a.ModelSettings,
-		Tools:        make([]tool.Tool, len(a.Tools)),
-		Handoffs:     make([]*Agent, len(a.Handoffs)),
-		OutputType:   a.OutputType,
-		Hooks:        a.Hooks,
+		Tools:         make([]tool.Tool, len(a.Tools)),
+		Handoffs:      make([]*Agent, len(a.Handoffs)),
+		OutputType:    a.OutputType,
+		Hooks:         a.Hooks,
 	}
-	
+
 	// Copy tools
 	copy(clone.Tools, a.Tools)
-	
+
 	// Copy handoffs
 	copy(clone.Handoffs, a.Handoffs)
-	
+
 	// Apply overrides
 	for key, value := range overrides {
 		switch key {
@@ -151,7 +151,7 @@ func (a *Agent) Clone(overrides map[string]interface{}) *Agent {
 			clone.Hooks = value.(AgentHooks)
 		}
 	}
-	
+
 	return clone
 }
 
@@ -187,7 +187,7 @@ func (a *Agent) SetSystemInstructions(instructions string) *Agent {
 func (a *Agent) AddToolFromDefinition(definition map[string]interface{}, executeFn func(map[string]interface{}) (interface{}, error)) *Agent {
 	// Create a tool from the definition
 	newTool := tool.CreateToolFromDefinition(definition, executeFn)
-	
+
 	// Add the tool to the agent
 	return a.WithTools(newTool)
 }
@@ -195,24 +195,24 @@ func (a *Agent) AddToolFromDefinition(definition map[string]interface{}, execute
 // AddToolsFromDefinitions adds multiple tools from OpenAI-compatible tool definitions
 func (a *Agent) AddToolsFromDefinitions(definitions []map[string]interface{}, executeFns map[string]func(map[string]interface{}) (interface{}, error)) *Agent {
 	tools := make([]tool.Tool, 0, len(definitions))
-	
+
 	for _, definition := range definitions {
 		// Extract the function name
 		functionDef := definition["function"].(map[string]interface{})
 		name := functionDef["name"].(string)
-		
+
 		// Find the execution function
 		executeFn, ok := executeFns[name]
 		if !ok {
 			// Skip if no execution function
 			continue
 		}
-		
+
 		// Create the tool
 		newTool := tool.CreateToolFromDefinition(definition, executeFn)
 		tools = append(tools, newTool)
 	}
-	
+
 	// Add the tools to the agent
 	return a.WithTools(tools...)
-} 
+}

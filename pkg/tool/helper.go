@@ -28,14 +28,14 @@ func CreateToolFromDefinition(definition map[string]interface{}, executeFn func(
 	name := functionDef["name"].(string)
 	description := functionDef["description"].(string)
 	parameters := functionDef["parameters"].(map[string]interface{})
-	
+
 	// Create a new function tool
 	tool := NewFunctionTool(name, description, func(ctx interface{}, params map[string]interface{}) (interface{}, error) {
 		return executeFn(params)
 	})
-	
+
 	// Set the schema
 	tool.WithSchema(parameters)
-	
+
 	return tool
-} 
+}

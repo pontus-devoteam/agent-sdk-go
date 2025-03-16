@@ -30,12 +30,12 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 	if !ok {
 		systemInstructions = ""
 	}
-	
+
 	input, ok := request.Input.(string)
 	if !ok {
 		input = ""
 	}
-	
+
 	if strings.Contains(systemInstructions, "Main Agent") {
 		// If input mentions "weather", use the weather agent
 		if strings.Contains(input, "weather") {
@@ -106,21 +106,21 @@ func (m *MockHandoffModel) StreamResponse(ctx context.Context, request *model.Mo
 	go func() {
 		defer close(eventCh)
 		resp, _ := m.GetResponse(ctx, request)
-		
+
 		if resp.Content != "" {
 			eventCh <- model.StreamEvent{
 				Type:    model.StreamEventTypeContent,
 				Content: resp.Content,
 			}
 		}
-		
+
 		if resp.HandoffCall != nil {
 			eventCh <- model.StreamEvent{
 				Type:        model.StreamEventTypeHandoff,
 				HandoffCall: resp.HandoffCall,
 			}
 		}
-		
+
 		eventCh <- model.StreamEvent{
 			Type:     model.StreamEventTypeDone,
 			Response: resp,
@@ -220,4 +220,4 @@ import (
 func TestBasicMultiAgent(t *testing.T) {
 	// This test just ensures the package compiles
 	// Actual multi-agent tests will be added in a future PR
-} 
+}

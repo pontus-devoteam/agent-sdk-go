@@ -96,8 +96,8 @@ func TestRunOptions(t *testing.T) {
 		Input:    input,
 		MaxTurns: maxTurns,
 		RunConfig: &runner.RunConfig{
-			Model:          "test-model",
-			ModelProvider:  &MockModelProvider{},
+			Model:           "test-model",
+			ModelProvider:   &MockModelProvider{},
 			TracingDisabled: true,
 		},
 	}
@@ -132,8 +132,8 @@ func TestRunOptions(t *testing.T) {
 func TestRunConfig(t *testing.T) {
 	// Create run configuration
 	cfg := &runner.RunConfig{
-		Model:          "test-model",
-		ModelProvider:  &MockModelProvider{},
+		Model:           "test-model",
+		ModelProvider:   &MockModelProvider{},
 		TracingDisabled: true,
 		TracingConfig: &runner.TracingConfig{
 			WorkflowName: "test-workflow",
@@ -223,4 +223,4 @@ func TestTracingConfig(t *testing.T) {
 	if cfg.Metadata["key"] != "value" {
 		t.Errorf("TracingConfig.Metadata[key] = %s, want value", cfg.Metadata["key"])
 	}
-} 
+}

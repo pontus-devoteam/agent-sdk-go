@@ -331,4 +331,4 @@ import (
 func TestBasic(t *testing.T) {
 	// This test just ensures the package compiles
 	// Actual tracing tests will be added in a future PR
-} 
+}

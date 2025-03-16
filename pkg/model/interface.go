@@ -55,11 +55,11 @@ type StreamEvent struct {
 
 // StreamEvent types
 const (
-	StreamEventTypeContent   = "content"
-	StreamEventTypeToolCall  = "tool_call"
-	StreamEventTypeHandoff   = "handoff"
-	StreamEventTypeDone      = "done"
-	StreamEventTypeError     = "error"
+	StreamEventTypeContent  = "content"
+	StreamEventTypeToolCall = "tool_call"
+	StreamEventTypeHandoff  = "handoff"
+	StreamEventTypeDone     = "done"
+	StreamEventTypeError    = "error"
 )
 
 // ModelSettings configures model-specific parameters
@@ -86,4 +86,4 @@ type Model interface {
 type ModelProvider interface {
 	// GetModel returns a model by name
 	GetModel(modelName string) (Model, error)
-} 
+}

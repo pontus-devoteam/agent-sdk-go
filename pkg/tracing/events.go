@@ -48,18 +48,18 @@ func ToolResult(ctx context.Context, agentName string, toolName string, result i
 		"tool_name": toolName,
 		"result":    result,
 	}
-	
+
 	event := Event{
 		Type:      EventTypeToolResult,
 		AgentName: agentName,
 		Timestamp: time.Now(),
 		Details:   details,
 	}
-	
+
 	if err != nil {
 		event.Error = err
 	}
-	
+
 	RecordEventContext(ctx, event)
 }
 
@@ -83,18 +83,18 @@ func ModelResponse(ctx context.Context, agentName string, model string, response
 		"model":    model,
 		"response": response,
 	}
-	
+
 	event := Event{
 		Type:      EventTypeModelResponse,
 		AgentName: agentName,
 		Timestamp: time.Now(),
 		Details:   details,
 	}
-	
+
 	if err != nil {
 		event.Error = err
 	}
-	
+
 	RecordEventContext(ctx, event)
 }
 
@@ -129,7 +129,7 @@ func Error(ctx context.Context, agentName string, message string, err error) {
 	details := map[string]interface{}{
 		"message": message,
 	}
-	
+
 	event := Event{
 		Type:      EventTypeError,
 		AgentName: agentName,
@@ -137,6 +137,6 @@ func Error(ctx context.Context, agentName string, message string, err error) {
 		Details:   details,
 		Error:     err,
 	}
-	
+
 	RecordEventContext(ctx, event)
-} 
+}

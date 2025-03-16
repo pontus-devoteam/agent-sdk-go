@@ -27,7 +27,7 @@ func main() {
 
 	// Set the model provider
 	agent.SetModelProvider(provider)
-	
+
 	// Set the agent's model
 	agent.WithModel("gemma-3-4b-it")
 
@@ -44,7 +44,7 @@ Make your responses helpful and to the point.`)
 		func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 			// Default format is RFC3339
 			format := time.RFC3339
-			
+
 			// Check if a format is specified
 			if formatParam, ok := params["format"]; ok {
 				if formatStr, ok := formatParam.(string); ok && formatStr != "" {
@@ -62,15 +62,15 @@ Make your responses helpful and to the point.`)
 					}
 				}
 			}
-			
+
 			return time.Now().Format(format), nil
 		},
 	).WithSchema(map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
 			"format": map[string]interface{}{
-				"type": "string",
-				"enum": []string{"rfc3339", "kitchen", "date", "datetime", "unix"},
+				"type":        "string",
+				"enum":        []string{"rfc3339", "kitchen", "date", "datetime", "unix"},
 				"description": "The format to return the time in. Options: rfc3339, kitchen, date, datetime, unix",
 			},
 		},
@@ -134,4 +134,4 @@ Make your responses helpful and to the point.`)
 
 	fmt.Println("\nFinal output:")
 	fmt.Println(streamResult.RunResult.FinalOutput)
-} 
+}

@@ -22,12 +22,12 @@ type TimeTool struct {
 func main() {
 	// Enable verbose logging
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	
+
 	// Create a model provider
 	provider := lmstudio.NewProvider()
 	provider.SetBaseURL("http://127.0.0.1:1234/v1")
 	provider.SetDefaultModel("gemma-3-4b-it")
-	
+
 	fmt.Println("Provider configured with:")
 	fmt.Println("- Base URL:", "http://127.0.0.1:1234/v1")
 	fmt.Println("- Model:", "gemma-3-4b-it")
@@ -115,18 +115,18 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 
 			// Seed the random number generator
 			rand.New(rand.NewSource(time.Now().UnixNano()))
-			
+
 			return rand.Intn(max-min+1) + min, nil
 		},
 	).WithSchema(map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
 			"min": map[string]interface{}{
-				"type": "integer",
+				"type":        "integer",
 				"description": "The minimum value (inclusive)",
 			},
 			"max": map[string]interface{}{
-				"type": "integer",
+				"type":        "integer",
 				"description": "The maximum value (inclusive)",
 			},
 		},
@@ -145,7 +145,7 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 
 			a, aOk := params["a"].(float64)
 			b, bOk := params["b"].(float64)
-			
+
 			if !aOk || !bOk {
 				return nil, fmt.Errorf("both 'a' and 'b' parameters are required and must be numbers")
 			}
@@ -170,16 +170,16 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 		"type": "object",
 		"properties": map[string]interface{}{
 			"operation": map[string]interface{}{
-				"type": "string",
-				"enum": []string{"add", "subtract", "multiply", "divide"},
+				"type":        "string",
+				"enum":        []string{"add", "subtract", "multiply", "divide"},
 				"description": "The mathematical operation to perform",
 			},
 			"a": map[string]interface{}{
-				"type": "number",
+				"type":        "number",
 				"description": "The first operand",
 			},
 			"b": map[string]interface{}{
-				"type": "number",
+				"type":        "number",
 				"description": "The second operand",
 			},
 		},
@@ -201,15 +201,15 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 				"sunny", "partly cloudy", "cloudy", "rainy", "stormy", "snowy", "foggy", "windy",
 			}
 			temperatures := []int{-10, 0, 5, 10, 15, 20, 25, 30, 35}
-			
+
 			// Seed the random generator
 			r := rand.New(rand.NewSource(time.Now().UnixNano()))
-			
+
 			// Generate mock weather data
 			condition := weatherConditions[r.Intn(len(weatherConditions))]
 			temperature := temperatures[r.Intn(len(temperatures))]
 			humidity := r.Intn(100)
-			
+
 			return map[string]interface{}{
 				"location":    location,
 				"condition":   condition,
@@ -223,7 +223,7 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 		"type": "object",
 		"properties": map[string]interface{}{
 			"location": map[string]interface{}{
-				"type": "string",
+				"type":        "string",
 				"description": "The location to get weather for (city name)",
 			},
 		},
@@ -236,7 +236,7 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 		"Get the current time in a specified format. This tool will return the current system time, not the time in a specific location.",
 		func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 			format := time.RFC3339
-			
+
 			if formatParam, ok := params["format"].(string); ok && formatParam != "" {
 				switch formatParam {
 				case "rfc3339":
@@ -251,15 +251,15 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 					return time.Now().Unix(), nil
 				}
 			}
-			
+
 			return time.Now().Format(format), nil
 		},
 	).WithSchema(map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
 			"format": map[string]interface{}{
-				"type": "string",
-				"enum": []string{"rfc3339", "kitchen", "date", "datetime", "unix"},
+				"type":        "string",
+				"enum":        []string{"rfc3339", "kitchen", "date", "datetime", "unix"},
 				"description": "The format to return the time in. Options: rfc3339, kitchen, date, datetime, unix",
 			},
 		},
@@ -268,11 +268,11 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 
 	// Add tools to agents - using consistent approach with WithTools
 	frontendAgent.WithTools(timeTool)
-	
+
 	mathAgent.WithTools(calculatorTool)
 	mathAgent.WithTools(randomNumberTool)
 	mathAgent.WithTools(timeTool)
-	
+
 	weatherAgent.WithTools(weatherTool)
 	weatherAgent.WithTools(timeTool)
 
@@ -286,11 +286,11 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	// Run example with a math query
 	fmt.Println("Running with a math query...")
 	result, err := runner.Run(context.Background(), frontendAgent, &RunOptions{
-		Input: "What is 42 divided by 6?",
+		Input:    "What is 42 divided by 6?",
 		MaxTurns: 20,
 		RunConfig: &RunConfig{
-			Model:         "gemma-3-4b-it",
-			ModelProvider: provider,
+			Model:           "gemma-3-4b-it",
+			ModelProvider:   provider,
 			TracingDisabled: false, // Enable tracing explicitly
 			TracingConfig: &TracingConfig{
 				WorkflowName: "math_query",
@@ -305,7 +305,7 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	fmt.Println("\nAgent response:")
 	fmt.Println(result.FinalOutput)
 	fmt.Println("\nItems generated:", len(result.NewItems))
-	
+
 	// Print detailed items for debugging
 	fmt.Println("\nDetailed items:")
 	for i, item := range result.NewItems {
@@ -315,11 +315,11 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	// Run example with a weather query
 	fmt.Println("\nRunning with a weather query...")
 	result, err = runner.Run(context.Background(), frontendAgent, &RunOptions{
-		Input: "What's the current weather in Paris?",
+		Input:    "What's the current weather in Paris?",
 		MaxTurns: 20,
 		RunConfig: &RunConfig{
-			Model:         "gemma-3-4b-it",
-			ModelProvider: provider,
+			Model:           "gemma-3-4b-it",
+			ModelProvider:   provider,
 			TracingDisabled: false, // Enable tracing explicitly
 			TracingConfig: &TracingConfig{
 				WorkflowName: "weather_query",
@@ -334,7 +334,7 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	fmt.Println("\nAgent response:")
 	fmt.Println(result.FinalOutput)
 	fmt.Println("\nItems generated:", len(result.NewItems))
-	
+
 	// Print detailed items for debugging
 	fmt.Println("\nDetailed items:")
 	for i, item := range result.NewItems {
@@ -344,11 +344,11 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	// Run example with a mixed query
 	fmt.Println("\nRunning with a mixed query...")
 	result, err = runner.Run(context.Background(), frontendAgent, &RunOptions{
-		Input: "What is 15 × 4 and what's the current time?",
+		Input:    "What is 15 × 4 and what's the current time?",
 		MaxTurns: 20,
 		RunConfig: &RunConfig{
-			Model:         "gemma-3-4b-it",
-			ModelProvider: provider,
+			Model:           "gemma-3-4b-it",
+			ModelProvider:   provider,
 			TracingDisabled: false, // Enable tracing explicitly
 			TracingConfig: &TracingConfig{
 				WorkflowName: "mixed_query",
@@ -363,10 +363,10 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	fmt.Println("\nAgent response:")
 	fmt.Println(result.FinalOutput)
 	fmt.Println("\nItems generated:", len(result.NewItems))
-	
+
 	// Print detailed items for debugging
 	fmt.Println("\nDetailed items:")
 	for i, item := range result.NewItems {
 		fmt.Printf("Item %d: Type=%s\n", i, item.GetType())
 	}
-} 
+}

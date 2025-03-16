@@ -388,4 +388,4 @@ func TestModelSettings(t *testing.T) {
 	if !*settings.ParallelToolCalls {
 		t.Errorf("ModelSettings.ParallelToolCalls = %v, want true", *settings.ParallelToolCalls)
 	}
-} 
+}

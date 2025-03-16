@@ -8,5 +8,5 @@ import (
 // Type aliases to help with import resolution
 // This helps avoid circular dependencies and import issues
 type AgentType = *agent.Agent
-type ModelRequestType = model.ModelRequest 
-type ModelSettingsType = model.ModelSettings 
+type ModelRequestType = model.ModelRequest
+type ModelSettingsType = model.ModelSettings

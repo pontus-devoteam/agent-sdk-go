@@ -1,0 +1,14 @@
+run:
+  # Timeout for analysis, e.g. 30s, 5m, default is 1m
+  timeout: 5m
+  # Set Go version to match CI environment
+  go: '1.23'
+  # Examine test files as well
+  tests: true
+
+# Available linters
+linters:
+  disable-all: true
+  enable:
+    - gofmt
+    - govet 

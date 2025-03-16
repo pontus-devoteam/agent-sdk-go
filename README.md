@@ -319,6 +319,53 @@ For more detailed documentation, see the [docs](./docs) directory.
 
 For examples, see the [examples](./cmd/examples) directory.
 
+## Development
+
+### Requirements
+
+- Go 1.23 or later
+
+### Setup
+
+1. Clone the repository
+2. Run the setup script to install required tools:
+
+```bash
+./scripts/ci_setup.sh
+```
+
+### Development Workflow
+
+The project includes several scripts to help with development:
+
+- `./scripts/lint.sh`: Runs formatting and linting checks
+- `./scripts/security_check.sh`: Runs security checks with gosec
+- `./scripts/check_all.sh`: Runs all checks including tests
+- `./scripts/version.sh`: Helps with versioning (run with `bump` argument to bump version)
+
+### Running Tests
+
+Tests are located in the `test` directory and can be run with:
+
+```bash
+cd test && make test
+```
+
+Or use the check_all script to run all checks including tests:
+
+```bash
+./scripts/check_all.sh
+```
+
+### CI/CD
+
+The project uses GitHub Actions for CI/CD. The workflow is defined in `.github/workflows/ci.yml` and includes:
+
+- Linting
+- Security checks
+- Building
+- Testing
+
 ## Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for details.

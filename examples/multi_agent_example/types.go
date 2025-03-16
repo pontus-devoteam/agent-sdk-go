@@ -6,5 +6,5 @@ import (
 
 // Type aliases to help with import resolution
 type RunConfig = runner.RunConfig
-type RunOptions = runner.RunOptions 
-type TracingConfig = runner.TracingConfig 
+type RunOptions = runner.RunOptions
+type TracingConfig = runner.TracingConfig

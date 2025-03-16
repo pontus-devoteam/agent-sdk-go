@@ -93,4 +93,4 @@ func ErrorEvent(err error) StreamEvent {
 		Type:  "error",
 		Error: err,
 	}
-} 
+}

@@ -26,4 +26,4 @@ func GetTracer(ctx context.Context) Tracer {
 // RecordEventContext records an event to the tracer in the context
 func RecordEventContext(ctx context.Context, event Event) {
 	GetTracer(ctx).RecordEvent(ctx, event)
-} 
+}

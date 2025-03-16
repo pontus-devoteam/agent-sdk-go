@@ -161,4 +161,4 @@ func TestSetModelProvider(t *testing.T) {
 	if a.Model != provider {
 		t.Errorf("Agent model provider not set correctly")
 	}
-} 
+}

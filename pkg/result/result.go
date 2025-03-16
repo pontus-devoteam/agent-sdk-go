@@ -28,8 +28,8 @@ func (i *MessageItem) GetType() string {
 // ToInputItem converts the item to an input item
 func (i *MessageItem) ToInputItem() interface{} {
 	return map[string]interface{}{
-		"type": "message",
-		"role": i.Role,
+		"type":    "message",
+		"role":    i.Role,
 		"content": i.Content,
 	}
 }
@@ -48,8 +48,8 @@ func (i *ToolCallItem) GetType() string {
 // ToInputItem converts the item to an input item
 func (i *ToolCallItem) ToInputItem() interface{} {
 	return map[string]interface{}{
-		"type": "tool_call",
-		"name": i.Name,
+		"type":       "tool_call",
+		"name":       i.Name,
 		"parameters": i.Parameters,
 	}
 }
@@ -68,8 +68,8 @@ func (i *ToolResultItem) GetType() string {
 // ToInputItem converts the item to an input item
 func (i *ToolResultItem) ToInputItem() interface{} {
 	return map[string]interface{}{
-		"type": "tool_result",
-		"name": i.Name,
+		"type":   "tool_result",
+		"name":   i.Name,
 		"result": i.Result,
 	}
 }
@@ -88,9 +88,9 @@ func (i *HandoffItem) GetType() string {
 // ToInputItem converts the item to an input item
 func (i *HandoffItem) ToInputItem() interface{} {
 	return map[string]interface{}{
-		"type": "handoff",
+		"type":       "handoff",
 		"agent_name": i.AgentName,
-		"input": i.Input,
+		"input":      i.Input,
 	}
 }
 
@@ -154,4 +154,4 @@ func (r *RunResult) ToInputList() []interface{} {
 	}
 
 	return result
-} 
+}

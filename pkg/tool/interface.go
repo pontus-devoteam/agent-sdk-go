@@ -17,4 +17,4 @@ type Tool interface {
 
 	// Execute executes the tool with the given parameters
 	Execute(ctx context.Context, params map[string]interface{}) (interface{}, error)
-} 
+}

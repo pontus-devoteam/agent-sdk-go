@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  GOFLAGS: "-buildvcs=false"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,11 +18,23 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: '1.21'
+        go-version: '1.23'
         cache: true
-
+        
+    - name: CI Environment Setup
+      run: ./scripts/ci_setup.sh
+        
+    - name: Update dependencies
+      run: go mod tidy
+      
+    - name: Lint
+      run: ./scripts/lint.sh
+      
+    - name: Security Check
+      run: ./scripts/security_check.sh
+        
     - name: Build
       run: go build -v ./...
 
     - name: Test
-      run: go test -v ./... 
+      run: cd test && make test 
