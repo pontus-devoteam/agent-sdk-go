@@ -441,9 +441,6 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 							continue
 						}
 					} else if response.Content != "" {
-						// Reset consecutive tool calls counter if we have content
-						consecutiveToolCalls = 0
-
 						// If we get here with content, we have a final output
 						streamedResult.RunResult.FinalOutput = response.Content
 
@@ -852,9 +849,6 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 				continue
 			}
 		} else if response.Content != "" {
-			// Reset consecutive tool calls counter if we have content
-			consecutiveToolCalls = 0
-            
 			// If we get here with content, we have a final output
 			runResult.FinalOutput = response.Content
 
@@ -1087,71 +1081,4 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 	}
 
 	return result
-}
-
-// mergeModelSettings merges agent model settings with run config model settings
-func (r *Runner) mergeModelSettings(agentSettings, configSettings *model.ModelSettings) *model.ModelSettings {
-	// If no agent settings, return config settings
-	if agentSettings == nil {
-		return configSettings
-	}
-
-	// If no config settings, return agent settings
-	if configSettings == nil {
-	return agentSettings
-	}
-
-	// Create a new settings object
-	mergedSettings := &model.ModelSettings{}
-
-	// Merge temperature
-	if configSettings.Temperature != nil {
-		mergedSettings.Temperature = configSettings.Temperature
-	} else {
-		mergedSettings.Temperature = agentSettings.Temperature
-	}
-
-	// Merge top_p
-	if configSettings.TopP != nil {
-		mergedSettings.TopP = configSettings.TopP
-	} else {
-		mergedSettings.TopP = agentSettings.TopP
-	}
-
-	// Merge frequency penalty
-	if configSettings.FrequencyPenalty != nil {
-		mergedSettings.FrequencyPenalty = configSettings.FrequencyPenalty
-	} else {
-		mergedSettings.FrequencyPenalty = agentSettings.FrequencyPenalty
-	}
-
-	// Merge presence penalty
-	if configSettings.PresencePenalty != nil {
-		mergedSettings.PresencePenalty = configSettings.PresencePenalty
-	} else {
-		mergedSettings.PresencePenalty = agentSettings.PresencePenalty
-	}
-
-	// Merge tool choice
-	if configSettings.ToolChoice != nil {
-		mergedSettings.ToolChoice = configSettings.ToolChoice
-	} else {
-		mergedSettings.ToolChoice = agentSettings.ToolChoice
-	}
-
-	// Merge parallel tool calls
-	if configSettings.ParallelToolCalls != nil {
-		mergedSettings.ParallelToolCalls = configSettings.ParallelToolCalls
-	} else {
-		mergedSettings.ParallelToolCalls = agentSettings.ParallelToolCalls
-	}
-
-	// Merge max tokens
-	if configSettings.MaxTokens != nil {
-		mergedSettings.MaxTokens = configSettings.MaxTokens
-	} else {
-		mergedSettings.MaxTokens = agentSettings.MaxTokens
-	}
-
-	return mergedSettings
 } 

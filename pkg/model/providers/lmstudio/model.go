@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"sync"
 	"bufio"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
@@ -21,7 +23,6 @@ type LMStudioModel struct {
 	Provider  *LMStudioProvider
 
 	// Internal state
-	mu sync.RWMutex
 }
 
 // ChatMessage represents a message in a chat
@@ -607,7 +608,7 @@ func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*mo
 			} else if strings.Contains(strings.ToLower(toolCall.Function.Name), "agent") {
 				// It might be trying to call an agent directly
 				possibleAgentName := strings.Replace(strings.ToLower(toolCall.Function.Name), "_agent", " agent", -1)
-				possibleAgentName = strings.Title(possibleAgentName)
+				possibleAgentName = cases.Title(language.Und, cases.NoLower).String(possibleAgentName)
 				
 				// Only use this heuristic if the name ends with "Agent"
 				if strings.HasSuffix(possibleAgentName, "Agent") {
