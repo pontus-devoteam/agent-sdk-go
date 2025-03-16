@@ -416,7 +416,7 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 							}
 
 							// Call hooks if provided
-							if opts.Hooks != nil && opts.Hooks.OnTurnEnd != nil {
+							if opts.Hooks != nil {
 								turnResult := &SingleTurnResult{
 									Agent:    currentAgent,
 									Response: response,
