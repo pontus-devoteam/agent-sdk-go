@@ -1,69 +1,80 @@
 <p align="center">
-  <img src="agent-sdk-go.jpg" alt="Agent SDK Go" width="400">
+  <img src="./agent-sdk-go.jpg" alt="Agent SDK Go" width="400">
+</p>
+
+<div align="center">
+  
+  [![Code Quality](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg)](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml)
+  [![Go Report Card](https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go)](https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go)
+  [![Go Version](https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod)
+  [![PkgGoDev](https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg)](https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go)
+  [![CodeQL](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml)
+  [![License](https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE)
+  [![Stars](https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/stargazers)
+  [![Contributors](https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors)
+  [![Last Commit](https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/commits/main)
+  
+</div>
+
+<p align="center">
+  A powerful framework for building AI agents with Go that supports multiple LLM providers, function calling, agent handoffs, and more.
 </p>
 
 <p align="center">
-  <!-- Code Quality -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml">
-    <img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality">
-  </a>
-  <!-- Go Report Card -->
-  <a href="https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go">
-    <img src="https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go" alt="Go Report Card">
-  </a>
-  <!-- Go Version -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod">
-    <img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version">
-  </a>
-  <!-- GoDoc -->
-  <a href="https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go">
-    <img src="https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg" alt="PkgGoDev">
-  </a>
-  <!-- CodeQL -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml">
-    <img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL">
-  </a>
-  <!-- License -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License">
-  </a>
-  <!-- Stars -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/stargazers">
-    <img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars">
-  </a>
-  <!-- Contributors -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors">
-    <img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors">
-  </a>
-  <!-- Last Commit -->
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/commits/main">
-    <img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit">
-  </a>
+  Inspired by <a href="https://platform.openai.com/docs/assistants/overview">OpenAI's Assistants API</a> and <a href="https://github.com/openai/openai-agents-python">OpenAI's Python Agent SDK</a>.
 </p>
 
-A Go implementation of an Agent SDK for building AI agents with support for multiple LLM providers, starting with LM Studio for local LLM integration. This project was inspired by [OpenAI's Assistants API](https://platform.openai.com/docs/assistants/overview) and [OpenAI's Python Agent SDK](https://github.com/openai/openai-agents-py).
+---
 
-## Overview
+## 📋 Table of Contents
 
-Agent SDK Go provides a framework for building AI agents that can use tools, perform handoffs to other agents, and produce structured output. It's designed to be flexible, extensible, and easy to use.
+- [Overview](#-overview)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Quick Start](#-quick-start)
+- [LM Studio Setup](#-lm-studio-setup)
+- [Key Components](#-key-components)
+  - [Agent](#agent)
+  - [Runner](#runner)
+  - [Tools](#tools)
+  - [Model Providers](#model-providers)
+- [Advanced Features](#-advanced-features)
+  - [Multi-Agent Workflows](#multi-agent-workflows)
+  - [Tracing](#tracing)
+  - [Structured Output](#structured-output)
+  - [Streaming](#streaming)
+  - [OpenAI Tool Definitions](#openai-tool-definitions)
+- [Examples](#-examples)
+- [Development](#-development)
+- [Contributing](#-contributing)
+- [License](#-license)
+- [Acknowledgements](#-acknowledgements)
 
-Key features:
-- Support for multiple LLM providers (starting with LM Studio)
-- Function calling with Go functions
-- Agent handoffs for complex workflows
-- Structured output using Go structs
-- Streaming responses
-- Input and output guardrails
-- Tracing and monitoring
-- OpenAI-compatible tool definitions
+---
 
-## Installation
+## 🔍 Overview
+
+Agent SDK Go provides a comprehensive framework for building AI agents in Go. It allows you to create agents that can use tools, perform handoffs to other specialized agents, and produce structured output - all while supporting multiple LLM providers.
+
+## 🌟 Features
+
+- ✅ **Multiple LLM Provider Support** - Starting with LM Studio for local model integration
+- ✅ **Tool Integration** - Call Go functions directly from your LLM
+- ✅ **Agent Handoffs** - Create complex multi-agent workflows with specialized agents
+- ✅ **Structured Output** - Parse responses into Go structs
+- ✅ **Streaming** - Get real-time streaming responses
+- ✅ **Tracing & Monitoring** - Debug your agent flows
+- ✅ **OpenAI Compatibility** - Compatible with OpenAI tool definitions
+
+## 📦 Installation
 
 ```bash
 go get github.com/pontus-devoteam/agent-sdk-go
 ```
 
-## Quick Start
+> **Note:** Requires Go 1.23 or later.
+
+## 🚀 Quick Start
 
 ```go
 package main
@@ -82,7 +93,7 @@ import (
 func main() {
     // Create a provider for LM Studio
     provider := lmstudio.NewProvider()
-    provider.SetBaseURL("http://localhost:1234/v1")
+    provider.SetBaseURL("http://127.0.0.1:1234/v1")
     provider.SetDefaultModel("gemma-3-4b-it") // Replace with your local model
 
     // Create a function tool
@@ -93,7 +104,16 @@ func main() {
             city := params["city"].(string)
             return fmt.Sprintf("The weather in %s is sunny.", city), nil
         },
-    )
+    ).WithSchema(map[string]interface{}{
+        "type": "object",
+        "properties": map[string]interface{}{
+            "city": map[string]interface{}{
+                "type": "string",
+                "description": "The city to get weather for",
+            },
+        },
+        "required": []string{"city"},
+    })
 
     // Create an agent
     assistant := agent.NewAgent("Assistant")
@@ -119,7 +139,10 @@ func main() {
 }
 ```
 
-## LM Studio Setup
+## 🖥️ LM Studio Setup
+
+<details>
+<summary>Click to expand setup instructions</summary>
 
 To use the LM Studio provider:
 
@@ -134,16 +157,18 @@ To use the LM Studio provider:
 3. **Start the Server**
    - Go to the "Local Server" tab
    - Click "Start Server"
-   - Note the server URL (default: http://localhost:1234)
+   - Note the server URL (default: http://127.0.0.1:1234)
 
 4. **Configure the Provider**
    ```go
    provider := lmstudio.NewProvider()
-   provider.SetBaseURL("http://localhost:1234/v1")
+   provider.SetBaseURL("http://127.0.0.1:1234/v1")
    provider.SetDefaultModel("gemma-3-4b-it") // Replace with your model
    ```
 
-## Key Components
+</details>
+
+## 🧩 Key Components
 
 ### Agent
 
@@ -154,18 +179,7 @@ The Agent is the core component that encapsulates the LLM with instructions, too
 agent := agent.NewAgent("Assistant")
 agent.SetSystemInstructions("You are a helpful assistant.")
 agent.WithModel("gemma-3-4b-it")
-agent.WithTools(tool1, tool2) // You can add multiple tools at once
-```
-
-You can add tools individually or pass multiple tools at once:
-
-```go
-// Add one tool at a time
-agent.WithTools(weatherTool)
-agent.WithTools(calculatorTool)
-
-// Or add multiple tools in a single call (recommended)
-agent.WithTools(weatherTool, calculatorTool, timeTool, translateTool)
+agent.WithTools(tool1, tool2) // Add multiple tools at once
 ```
 
 ### Runner
@@ -178,14 +192,15 @@ runner := runner.NewRunner()
 runner.WithDefaultProvider(provider)
 
 // Run the agent
-result, err := runner.Run(context.Background(), agent, &runner.RunOptions{
+result, err := runner.RunSync(agent, &runner.RunOptions{
     Input: "Hello, world!",
+    MaxTurns: 10, // Optional: limit the number of turns
 })
 ```
 
 ### Tools
 
-Tools allow agents to perform actions.
+Tools allow agents to perform actions using your Go functions.
 
 ```go
 // Create a function tool
@@ -215,7 +230,7 @@ Model providers allow you to use different LLM providers.
 ```go
 // Create a provider for LM Studio
 provider := lmstudio.NewProvider()
-provider.SetBaseURL("http://localhost:1234/v1")
+provider.SetBaseURL("http://127.0.0.1:1234/v1")
 provider.SetDefaultModel("gemma-3-4b-it")
 
 // Set as the default provider
@@ -223,42 +238,55 @@ runner := runner.NewRunner()
 runner.WithDefaultProvider(provider)
 ```
 
-## Advanced Features
+## 🔧 Advanced Features
 
 ### Multi-Agent Workflows
 
-The SDK supports creating multi-agent systems where agents can handoff tasks to specialized agents:
+<details>
+<summary>Create specialized agents that collaborate on complex tasks</summary>
 
 ```go
 // Create specialized agents
 mathAgent := agent.NewAgent("Math Agent")
+mathAgent.SetModelProvider(provider)
+mathAgent.WithModel("gemma-3-4b-it")
 mathAgent.SetSystemInstructions("You are a specialized math agent.")
 mathAgent.WithTools(calculatorTool)
 
 weatherAgent := agent.NewAgent("Weather Agent")
+weatherAgent.SetModelProvider(provider)
+weatherAgent.WithModel("gemma-3-4b-it")
 weatherAgent.SetSystemInstructions("You provide weather information.")
 weatherAgent.WithTools(weatherTool)
 
 // Create a frontend agent that coordinates tasks
 frontendAgent := agent.NewAgent("Frontend Agent")
+frontendAgent.SetModelProvider(provider)
+frontendAgent.WithModel("gemma-3-4b-it")
 frontendAgent.SetSystemInstructions(`You coordinate requests by delegating to specialized agents.
 For math calculations, delegate to the Math Agent.
 For weather information, delegate to the Weather Agent.`)
 frontendAgent.WithHandoffs(mathAgent, weatherAgent)
 
 // Run the frontend agent
-result, err := runner.Run(context.Background(), frontendAgent, &runner.RunOptions{
+result, err := runner.RunSync(frontendAgent, &runner.RunOptions{
     Input: "What is 42 divided by 6 and what's the weather in Paris?",
+    MaxTurns: 20,
 })
 ```
 
+See the complete example in [examples/multi_agent_example](./examples/multi_agent_example).
+
+</details>
+
 ### Tracing
 
-Enable tracing to debug and monitor your agents:
+<details>
+<summary>Debug your agent workflows with tracing</summary>
 
 ```go
 // Run with tracing enabled
-result, err := runner.Run(context.Background(), agent, &runner.RunOptions{
+result, err := runner.RunSync(agent, &runner.RunOptions{
     Input: "Hello, world!",
     RunConfig: &runner.RunConfig{
         TracingDisabled: false,
@@ -269,7 +297,12 @@ result, err := runner.Run(context.Background(), agent, &runner.RunOptions{
 })
 ```
 
+</details>
+
 ### Structured Output
+
+<details>
+<summary>Parse responses into Go structs</summary>
 
 ```go
 // Define an output type
@@ -285,7 +318,12 @@ agent.SetSystemInstructions("You provide weather reports")
 agent.SetOutputType(reflect.TypeOf(WeatherReport{}))
 ```
 
+</details>
+
 ### Streaming
+
+<details>
+<summary>Get real-time streaming responses</summary>
 
 ```go
 // Run the agent with streaming
@@ -298,7 +336,6 @@ if err != nil {
 
 // Process streaming events
 for event := range streamedResult.Stream {
-    // Handle event
     switch event.Type {
     case model.StreamEventTypeContent:
         fmt.Print(event.Content)
@@ -310,55 +347,65 @@ for event := range streamedResult.Stream {
 }
 ```
 
-## OpenAI Tool Definitions
+</details>
 
-The SDK provides utilities for working with OpenAI-compatible tool definitions:
+### OpenAI Tool Definitions
+
+<details>
+<summary>Work with OpenAI-compatible tool definitions</summary>
 
 ```go
 // Auto-generate OpenAI-compatible tool definitions from Go functions
-func main() {
-    // Create a tool from a Go function
-    getCurrentTimeTool := tool.NewFunctionTool(
-        "get_current_time",
-        "Get the current time in a specified format",
-        func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-            // Tool implementation
-            return time.Now().Format(time.RFC3339), nil
-        },
-    )
-    
-    // Convert it to OpenAI format - this is handled automatically
-    // when tools are added to the agent, but you can also do it manually:
-    openAITool := tool.ToOpenAITool(getCurrentTimeTool)
-    
-    // Now you can use this schema elsewhere (e.g., in an OpenAI API call)
-    // or pass it to other systems that expect OpenAI-compatible tool definitions
-    
-    // You can also add an OpenAI-compatible tool definition directly to an agent:
-    agent := agent.NewAgent("My Agent")
-    agent.AddToolFromDefinition(openAITool)
-    
-    // You can also add multiple tool definitions at once:
-    toolDefinitions := []map[string]interface{}{
-        tool.ToOpenAITool(tool1),
-        tool.ToOpenAITool(tool2),
-    }
-    
-    agent.AddToolsFromDefinitions(toolDefinitions)
+getCurrentTimeTool := tool.NewFunctionTool(
+    "get_current_time",
+    "Get the current time in a specified format",
+    func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+        return time.Now().Format(time.RFC3339), nil
+    },
+)
+
+// Convert it to OpenAI format (handled automatically when added to an agent)
+openAITool := tool.ToOpenAITool(getCurrentTimeTool)
+
+// Add an OpenAI-compatible tool definition directly to an agent
+agent := agent.NewAgent("My Agent")
+agent.AddToolFromDefinition(openAITool)
+
+// Add multiple tool definitions at once
+toolDefinitions := []map[string]interface{}{
+    tool.ToOpenAITool(tool1),
+    tool.ToOpenAITool(tool2),
 }
+
+agent.AddToolsFromDefinitions(toolDefinitions)
 ```
 
-This makes it easy to share tool definitions between this SDK and other OpenAI API integrations.
+</details>
 
-## Documentation
+## 📚 Examples
 
-For more detailed documentation, see the [docs](./docs) directory.
+The repository includes several examples to help you get started:
 
-## Examples
+| Example | Description |
+|---------|-------------|
+| [Multi-Agent Example](./examples/multi_agent_example) | Demonstrates how to create a system of specialized agents that can collaborate on complex tasks |
 
-For examples, see the [examples](./cmd/examples) directory.
+To run the multi-agent example:
 
-## Development
+1. Make sure LM Studio is running with a server at `http://127.0.0.1:1234/v1`
+2. Navigate to the example directory
+   ```bash
+   cd examples/multi_agent_example
+   ```
+3. Run the example
+   ```bash
+   go run .
+   ```
+
+## 🛠️ Development
+
+<details>
+<summary>Development setup and workflows</summary>
 
 ### Requirements
 
@@ -398,21 +445,18 @@ Or use the check_all script to run all checks including tests:
 
 ### CI/CD
 
-The project uses GitHub Actions for CI/CD. The workflow is defined in `.github/workflows/ci.yml` and includes:
+The project uses GitHub Actions for CI/CD. The workflow is defined in `.github/workflows/ci.yml`.
 
-- Linting
-- Security checks
-- Building
-- Testing
+</details>
 
-## Contributing
+## 👥 Contributing
 
 Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for details.
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE) file for details.
 
-## Acknowledgements
+## 🙏 Acknowledgements
 
 This project is inspired by [OpenAI's Assistants API](https://platform.openai.com/docs/assistants/overview) and [OpenAI's Python Agent SDK](https://github.com/openai/openai-agents-py), with the goal of providing similar capabilities in Go while being compatible with local LLMs. 
