@@ -2,6 +2,45 @@
   <img src="agent-sdk-go.jpg" alt="Agent SDK Go" width="400">
 </p>
 
+<p align="center">
+  <!-- Code Quality -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml">
+    <img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality">
+  </a>
+  <!-- Go Report Card -->
+  <a href="https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go">
+    <img src="https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go" alt="Go Report Card">
+  </a>
+  <!-- Go Version -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod">
+    <img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version">
+  </a>
+  <!-- GoDoc -->
+  <a href="https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go">
+    <img src="https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg" alt="PkgGoDev">
+  </a>
+  <!-- CodeQL -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml">
+    <img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL">
+  </a>
+  <!-- License -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License">
+  </a>
+  <!-- Stars -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/stargazers">
+    <img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars">
+  </a>
+  <!-- Contributors -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors">
+    <img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors">
+  </a>
+  <!-- Last Commit -->
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/commits/main">
+    <img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit">
+  </a>
+</p>
+
 A Go implementation of an Agent SDK for building AI agents with support for multiple LLM providers, starting with LM Studio for local LLM integration. This project was inspired by [OpenAI's Assistants API](https://platform.openai.com/docs/assistants/overview) and [OpenAI's Python Agent SDK](https://github.com/openai/openai-agents-py).
 
 ## Overview
