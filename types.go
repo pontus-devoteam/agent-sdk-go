@@ -4,6 +4,10 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
 )
 
-// Type aliases to help with import resolution
+// RunOptions represents configuration options for running agents.
+// Type alias to help with import resolution.
 type RunOptions = runner.RunOptions
+
+// RunConfig represents the configuration for the runner.
+// Type alias to help with import resolution.
 type RunConfig = runner.RunConfig

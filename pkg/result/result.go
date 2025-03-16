@@ -103,7 +103,7 @@ type RunResult struct {
 	NewItems []RunItem
 
 	// RawResponses are the raw LLM responses generated during the run
-	RawResponses []model.ModelResponse
+	RawResponses []model.Response
 
 	// FinalOutput is the output of the last agent
 	FinalOutput interface{}

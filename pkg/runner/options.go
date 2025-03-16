@@ -28,10 +28,10 @@ type RunConfig struct {
 	Model interface{}
 
 	// ModelProvider is the provider for resolving model names
-	ModelProvider model.ModelProvider
+	ModelProvider model.Provider
 
 	// ModelSettings are global model settings
-	ModelSettings *model.ModelSettings
+	ModelSettings *model.Settings
 
 	// HandoffInputFilter is a global handoff input filter
 	HandoffInputFilter HandoffInputFilter

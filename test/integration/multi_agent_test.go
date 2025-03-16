@@ -24,7 +24,7 @@ func (p *MockHandoffModelProvider) GetModel(name string) (model.Model, error) {
 // MockHandoffModel simulates a model that will make handoff calls
 type MockHandoffModel struct{}
 
-func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.ModelRequest) (*model.ModelResponse, error) {
+func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Request) (*model.Response, error) {
 	// Check if this is the main agent
 	systemInstructions, ok := request.SystemInstructions.(string)
 	if !ok {
@@ -39,7 +39,7 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 	if strings.Contains(systemInstructions, "Main Agent") {
 		// If input mentions "weather", use the weather agent
 		if strings.Contains(input, "weather") {
-			return &model.ModelResponse{
+			return &model.Response{
 				Content: "I'll get the weather for you.",
 				HandoffCall: &model.HandoffCall{
 					AgentName: "weather_agent",
@@ -50,7 +50,7 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 
 		// If input mentions "math", use the math agent
 		if strings.Contains(input, "math") || strings.Contains(input, "calculate") {
-			return &model.ModelResponse{
+			return &model.Response{
 				Content: "I'll solve the math problem for you.",
 				HandoffCall: &model.HandoffCall{
 					AgentName: "math_agent",
@@ -60,7 +60,7 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 		}
 
 		// Default response
-		return &model.ModelResponse{
+		return &model.Response{
 			Content: "I'm the main agent. I can help by delegating to specialized agents.",
 		}, nil
 	}
@@ -75,7 +75,7 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 			location = "Unknown"
 		}
 
-		return &model.ModelResponse{
+		return &model.Response{
 			Content: "The weather in " + location + " is sunny with a temperature of 25°C.",
 		}, nil
 	}
@@ -90,18 +90,18 @@ func (m *MockHandoffModel) GetResponse(ctx context.Context, request *model.Model
 			result = "Unable to calculate"
 		}
 
-		return &model.ModelResponse{
+		return &model.Response{
 			Content: "The result of the calculation is " + result + ".",
 		}, nil
 	}
 
 	// Default response
-	return &model.ModelResponse{
+	return &model.Response{
 		Content: "I'm a mock agent response.",
 	}, nil
 }
 
-func (m *MockHandoffModel) StreamResponse(ctx context.Context, request *model.ModelRequest) (<-chan model.StreamEvent, error) {
+func (m *MockHandoffModel) StreamResponse(ctx context.Context, request *model.Request) (<-chan model.StreamEvent, error) {
 	eventCh := make(chan model.StreamEvent)
 	go func() {
 		defer close(eventCh)

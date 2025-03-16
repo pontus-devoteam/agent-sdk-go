@@ -16,11 +16,11 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
 
-// LMStudioModel implements Model for LM Studio
-type LMStudioModel struct {
+// Model implements the model.Model interface for LM Studio
+type Model struct {
 	// Configuration
 	ModelName string
-	Provider  *LMStudioProvider
+	Provider  *Provider
 
 	// Internal state
 }
@@ -98,7 +98,7 @@ type ChatCompletionUsage struct {
 }
 
 // GetResponse gets a single response from the model
-func (m *LMStudioModel) GetResponse(ctx context.Context, request *model.ModelRequest) (*model.ModelResponse, error) {
+func (m *Model) GetResponse(ctx context.Context, request *model.Request) (*model.Response, error) {
 	// Construct the request
 	chatRequest, err := m.constructRequest(request)
 	if err != nil {
@@ -133,7 +133,16 @@ func (m *LMStudioModel) GetResponse(ctx context.Context, request *model.ModelReq
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer httpResponse.Body.Close()
+	defer func() {
+		if closeErr := httpResponse.Body.Close(); closeErr != nil {
+			// If we already have an error, keep it as the primary error
+			if err == nil {
+				err = fmt.Errorf("error closing response body: %w", closeErr)
+			}
+			// Otherwise log it or add it to existing error
+			// log.Printf("Warning: error closing response body: %v", closeErr)
+		}
+	}()
 
 	// Check for errors
 	if httpResponse.StatusCode != http.StatusOK {
@@ -157,7 +166,7 @@ func (m *LMStudioModel) GetResponse(ctx context.Context, request *model.ModelReq
 }
 
 // StreamResponse streams a response from the model
-func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.ModelRequest) (<-chan model.StreamEvent, error) {
+func (m *Model) StreamResponse(ctx context.Context, request *model.Request) (<-chan model.StreamEvent, error) {
 	// Create a channel for stream events
 	eventChan := make(chan model.StreamEvent)
 
@@ -198,6 +207,12 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
+	defer func() {
+		if closeErr := httpResponse.Body.Close(); closeErr != nil {
+			// Log the error or handle it appropriately within the goroutine
+			// log.Printf("Warning: error closing response body in goroutine: %v", closeErr)
+		}
+	}()
 
 	// Check for errors
 	if httpResponse.StatusCode != http.StatusOK {
@@ -210,7 +225,12 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 
 	// Start a goroutine to process the stream
 	go func() {
-		defer httpResponse.Body.Close()
+		defer func() {
+			if closeErr := httpResponse.Body.Close(); closeErr != nil {
+				// Log the error or handle it appropriately within the goroutine
+				// log.Printf("Warning: error closing response body in goroutine: %v", closeErr)
+			}
+		}()
 		defer close(eventChan)
 
 		// Create a scanner to read the response line by line
@@ -324,7 +344,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 				if choice.FinishReason != "" {
 					eventChan <- model.StreamEvent{
 						Type: model.StreamEventTypeDone,
-						Response: &model.ModelResponse{
+						Response: &model.Response{
 							Content:   content,
 							ToolCalls: toolCalls,
 						},
@@ -346,7 +366,7 @@ func (m *LMStudioModel) StreamResponse(ctx context.Context, request *model.Model
 }
 
 // constructRequest constructs a chat completion request from a model request
-func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatCompletionRequest, error) {
+func (m *Model) constructRequest(request *model.Request) (*ChatCompletionRequest, error) {
 	// Create the chat request
 	chatRequest := &ChatCompletionRequest{
 		Model:    m.ModelName,
@@ -540,7 +560,7 @@ func (m *LMStudioModel) constructRequest(request *model.ModelRequest) (*ChatComp
 }
 
 // parseResponse parses a chat completion response into a model response
-func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*model.ModelResponse, error) {
+func (m *Model) parseResponse(chatResponse *ChatCompletionResponse) (*model.Response, error) {
 	// Check if we have any choices
 	if len(chatResponse.Choices) == 0 {
 		return nil, fmt.Errorf("no choices in response")
@@ -550,7 +570,7 @@ func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*mo
 	choice := chatResponse.Choices[0]
 
 	// Create the model response
-	response := &model.ModelResponse{
+	response := &model.Response{
 		Content:     choice.Message.Content,
 		ToolCalls:   make([]model.ToolCall, 0),
 		HandoffCall: nil,
@@ -639,7 +659,7 @@ func (m *LMStudioModel) parseResponse(chatResponse *ChatCompletionResponse) (*mo
 }
 
 // handleError handles an error response from the API
-func (m *LMStudioModel) handleError(response *http.Response) error {
+func (m *Model) handleError(response *http.Response) error {
 	// Read the response body
 	body, err := io.ReadAll(response.Body)
 	if err != nil {

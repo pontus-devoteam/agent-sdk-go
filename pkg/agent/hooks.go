@@ -7,16 +7,16 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
 
-// AgentHooks defines lifecycle hooks for an agent
-type AgentHooks interface {
+// Hooks defines lifecycle hooks for an agent
+type Hooks interface {
 	// OnAgentStart is called when the agent starts processing
 	OnAgentStart(ctx context.Context, agent *Agent, input interface{}) error
 
 	// OnBeforeModelCall is called before the model is called
-	OnBeforeModelCall(ctx context.Context, agent *Agent, request *model.ModelRequest) error
+	OnBeforeModelCall(ctx context.Context, agent *Agent, request *model.Request) error
 
 	// OnAfterModelCall is called after the model is called
-	OnAfterModelCall(ctx context.Context, agent *Agent, response *model.ModelResponse) error
+	OnAfterModelCall(ctx context.Context, agent *Agent, response *model.Response) error
 
 	// OnBeforeToolCall is called before a tool is called
 	OnBeforeToolCall(ctx context.Context, agent *Agent, tool tool.Tool, params map[string]interface{}) error
@@ -34,7 +34,7 @@ type AgentHooks interface {
 	OnAgentEnd(ctx context.Context, agent *Agent, result interface{}) error
 }
 
-// DefaultAgentHooks provides a default implementation of AgentHooks
+// DefaultAgentHooks provides a default implementation of Hooks
 type DefaultAgentHooks struct{}
 
 // OnAgentStart is called when the agent starts processing
@@ -43,12 +43,12 @@ func (h *DefaultAgentHooks) OnAgentStart(ctx context.Context, agent *Agent, inpu
 }
 
 // OnBeforeModelCall is called before the model is called
-func (h *DefaultAgentHooks) OnBeforeModelCall(ctx context.Context, agent *Agent, request *model.ModelRequest) error {
+func (h *DefaultAgentHooks) OnBeforeModelCall(ctx context.Context, agent *Agent, request *model.Request) error {
 	return nil
 }
 
 // OnAfterModelCall is called after the model is called
-func (h *DefaultAgentHooks) OnAfterModelCall(ctx context.Context, agent *Agent, response *model.ModelResponse) error {
+func (h *DefaultAgentHooks) OnAfterModelCall(ctx context.Context, agent *Agent, response *model.Response) error {
 	return nil
 }
 

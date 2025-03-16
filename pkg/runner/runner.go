@@ -25,7 +25,7 @@ const (
 type Runner struct {
 	// Default configuration
 	defaultMaxTurns int
-	defaultProvider model.ModelProvider
+	defaultProvider model.Provider
 
 	// Internal state
 	mu sync.RWMutex
@@ -47,7 +47,7 @@ func (r *Runner) WithDefaultMaxTurns(maxTurns int) *Runner {
 }
 
 // WithDefaultProvider sets the default model provider
-func (r *Runner) WithDefaultProvider(provider model.ModelProvider) *Runner {
+func (r *Runner) WithDefaultProvider(provider model.Provider) *Runner {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.defaultProvider = provider
@@ -200,28 +200,8 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 				}
 			}
 
-			// Clone the model settings to avoid modifying the original
-			var modelSettings *ModelSettingsType
-			if currentAgent.ModelSettings != nil {
-				// Create a copy of the model settings
-				tempSettings := *currentAgent.ModelSettings
-				modelSettings = &tempSettings
-			} else if opts.RunConfig.ModelSettings != nil {
-				// Create a copy of the run config settings
-				tempSettings := *opts.RunConfig.ModelSettings
-				modelSettings = &tempSettings
-			} else {
-				// Create new settings
-				modelSettings = &ModelSettingsType{}
-			}
-
-			// Adjust tool_choice if we've had many consecutive calls to the same tool
-			if consecutiveToolCalls >= 3 {
-				// Suggest the model to provide a text response after multiple tool calls
-				// This is a suggestion, not a command - the model can still use tools if needed
-				autoChoice := "auto"
-				modelSettings.ToolChoice = &autoChoice
-			}
+			// Prepare model settings
+			modelSettings := r.prepareModelSettings(currentAgent, opts.RunConfig, consecutiveToolCalls)
 
 			// Prepare model request
 			request := &ModelRequestType{
@@ -299,11 +279,10 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 
 				case model.StreamEventTypeDone:
 					// Create the final response
-					response := &model.ModelResponse{
+					response := &model.Response{
 						Content:     content,
 						ToolCalls:   toolCalls,
 						HandoffCall: handoffCall,
-						Usage:       nil, // Usage not available in streaming
 					}
 
 					// Call agent hooks if provided
@@ -509,6 +488,74 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 	return streamedResult, nil
 }
 
+// setupTracing sets up tracing for an agent if not disabled in the options
+func (r *Runner) setupTracing(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions) (context.Context, func(), error) {
+	// Skip if tracing is disabled
+	if opts.RunConfig != nil && opts.RunConfig.TracingDisabled {
+		// Return no-op cleanup function
+		return ctx, func() {}, nil
+	}
+
+	// Create tracer
+	tracer, err := tracing.TraceForAgent(agent.Name)
+	if err != nil {
+		// Log error but continue without tracing
+		fmt.Fprintf(os.Stderr, "Failed to create tracer: %v\n", err)
+		return ctx, func() {}, nil
+	}
+
+	// Add tracer to context
+	tracingCtx := tracing.WithTracer(ctx, tracer)
+
+	// Record agent start event
+	tracing.AgentStart(tracingCtx, agent.Name, input)
+
+	// Create cleanup function for deferred execution
+	cleanup := func() {
+		// Record agent end event
+		tracing.AgentEnd(tracingCtx, agent.Name, nil) // FinalOutput will be added later
+
+		if err := tracer.Flush(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error flushing tracer: %v\n", err)
+		}
+		if err := tracer.Close(); err != nil {
+			fmt.Fprintf(os.Stderr, "Error closing tracer: %v\n", err)
+		}
+	}
+
+	return tracingCtx, cleanup, nil
+}
+
+// prepareModelSettings creates model settings for a request based on agent and run configuration
+func (r *Runner) prepareModelSettings(agent AgentType, runConfig *RunConfig, consecutiveToolCalls int) *ModelSettingsType {
+	// Clone the model settings to avoid modifying the original
+	var modelSettings *ModelSettingsType
+
+	// Try to use agent settings first
+	if agent.ModelSettings != nil {
+		// Create a copy of the model settings
+		tempSettings := *agent.ModelSettings
+		modelSettings = &tempSettings
+	} else if runConfig != nil && runConfig.ModelSettings != nil {
+		// If no agent settings, use run config settings
+		tempSettings := *runConfig.ModelSettings
+		modelSettings = &tempSettings
+	} else {
+		// Create new settings if none exist
+		modelSettings = &ModelSettingsType{}
+	}
+
+	// Adjust tool_choice if we've had many consecutive calls to the same tool
+	if consecutiveToolCalls >= 3 {
+		// Suggest the model to provide a text response after multiple tool calls
+		// This is a suggestion, not a command - the model can still use tools if needed
+		autoChoice := "auto"
+		modelSettings.ToolChoice = &autoChoice
+	}
+
+	return modelSettings
+}
+
 // runAgentLoop runs the agent loop
 func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions) (*result.RunResult, error) {
 	// Initialize result
@@ -520,30 +567,15 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 	}
 
 	// Set up tracing if not disabled
-	if opts.RunConfig == nil || !opts.RunConfig.TracingDisabled {
-		tracer, err := tracing.TraceForAgent(agent.Name)
-		if err != nil {
-			// Log error but continue
-			fmt.Fprintf(os.Stderr, "Failed to create tracer: %v\n", err)
-		} else {
-			// Add tracer to context
-			ctx = tracing.WithTracer(ctx, tracer)
-
-			// Record agent start event
-			tracing.AgentStart(ctx, agent.Name, input)
-
-			// Ensure tracer is closed when done
-			defer func() {
-				tracing.AgentEnd(ctx, agent.Name, runResult.FinalOutput)
-				if err := tracer.Flush(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error flushing tracer: %v\n", err)
-				}
-				if err := tracer.Close(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error closing tracer: %v\n", err)
-				}
-			}()
+	var tracingCleanup func()
+	ctx, tracingCleanup, _ = r.setupTracing(ctx, agent, input, opts)
+	defer func() {
+		// Update final output in tracing before cleanup
+		if tracingCleanup != nil {
+			tracing.AgentEnd(ctx, agent.Name, runResult.FinalOutput)
+			tracingCleanup()
 		}
-	}
+	}()
 
 	// Call hooks if provided
 	if opts.Hooks != nil {
@@ -579,28 +611,8 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 			}
 		}
 
-		// Clone the model settings to avoid modifying the original
-		var modelSettings *ModelSettingsType
-		if currentAgent.ModelSettings != nil {
-			// Create a copy of the model settings
-			tempSettings := *currentAgent.ModelSettings
-			modelSettings = &tempSettings
-		} else if opts.RunConfig.ModelSettings != nil {
-			// Create a copy of the run config settings
-			tempSettings := *opts.RunConfig.ModelSettings
-			modelSettings = &tempSettings
-		} else {
-			// Create new settings
-			modelSettings = &ModelSettingsType{}
-		}
-
-		// Adjust tool_choice if we've had many consecutive calls to the same tool
-		if consecutiveToolCalls >= 3 {
-			// Suggest the model to provide a text response after multiple tool calls
-			// This is a suggestion, not a command - the model can still use tools if needed
-			autoChoice := "auto"
-			modelSettings.ToolChoice = &autoChoice
-		}
+		// Prepare model settings
+		modelSettings := r.prepareModelSettings(currentAgent, opts.RunConfig, consecutiveToolCalls)
 
 		// Prepare model request
 		request := &ModelRequestType{
@@ -720,71 +732,20 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 
 			// Execute the tool calls
 			toolResults := make([]interface{}, 0, len(response.ToolCalls))
-			for _, tc := range response.ToolCalls {
-				// Find the tool
-				var toolToCall tool.Tool
-				for _, t := range currentAgent.Tools {
-					if t.GetName() == tc.Name {
-						toolToCall = t
-						break
-					}
-				}
+			for i, tc := range response.ToolCalls {
+				// Execute the tool call with our helper function
+				modelToolResult, toolCallItem, toolResultItem, err := r.executeToolCall(ctx, currentAgent, tc, turn, i)
 
-				// If we found the tool, execute it
-				if toolToCall != nil {
-					// Record tool call event
-					tracing.ToolCall(ctx, currentAgent.Name, tc.Name, tc.Parameters)
+				// Add the items to the result
+				runResult.NewItems = append(runResult.NewItems, toolCallItem)
+				runResult.NewItems = append(runResult.NewItems, toolResultItem)
 
-					// Call agent hooks if provided
-					if currentAgent.Hooks != nil {
-						if err := currentAgent.Hooks.OnBeforeToolCall(ctx, currentAgent, toolToCall, tc.Parameters); err != nil {
-							return nil, fmt.Errorf("before tool call hook error: %w", err)
-						}
-					}
+				// Add the tool result to the list for model input
+				toolResults = append(toolResults, modelToolResult)
 
-					// Execute the tool
-					toolResult, err := toolToCall.Execute(ctx, tc.Parameters)
-
-					// Record tool result event
-					tracing.ToolResult(ctx, currentAgent.Name, tc.Name, toolResult, err)
-
-					// Call agent hooks if provided
-					if currentAgent.Hooks != nil {
-						if err := currentAgent.Hooks.OnAfterToolCall(ctx, currentAgent, toolToCall, toolResult, err); err != nil {
-							return nil, fmt.Errorf("after tool call hook error: %w", err)
-						}
-					}
-
-					// Handle tool execution error
-					if err != nil {
-						toolResult = fmt.Sprintf("Error: %v", err)
-					}
-
-					// Add the tool call and result to the result
-					toolCallItem := &result.ToolCallItem{
-						Name:       tc.Name,
-						Parameters: tc.Parameters,
-					}
-					runResult.NewItems = append(runResult.NewItems, toolCallItem)
-
-					toolResultItem := &result.ToolResultItem{
-						Name:   tc.Name,
-						Result: toolResult,
-					}
-					runResult.NewItems = append(runResult.NewItems, toolResultItem)
-
-					// Add the tool result to the list
-					toolResults = append(toolResults, map[string]interface{}{
-						"type": "tool_result",
-						"tool_call": map[string]interface{}{
-							"name":       tc.Name,
-							"id":         fmt.Sprintf("call_%d_%d", turn, len(toolResults)),
-							"parameters": tc.Parameters,
-						},
-						"tool_result": map[string]interface{}{
-							"content": toolResult,
-						},
-					})
+				// If we had a critical error that wasn't handled in executeToolCall, return it
+				if err != nil && (toolCallItem == nil || toolResultItem == nil) {
+					return nil, fmt.Errorf("tool execution error: %w", err)
 				}
 			}
 
@@ -892,6 +853,106 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 	}
 
 	return runResult, nil
+}
+
+// executeToolCall executes a tool call and returns the result
+func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.ToolCall, turn int, idx int) (interface{}, *result.ToolCallItem, *result.ToolResultItem, error) {
+	// Find the tool
+	var toolToCall tool.Tool
+	for _, t := range agent.Tools {
+		if t.GetName() == tc.Name {
+			toolToCall = t
+			break
+		}
+	}
+
+	// If we didn't find the tool, return an error result
+	if toolToCall == nil {
+		err := fmt.Errorf("tool not found: %s", tc.Name)
+		return fmt.Sprintf("Error: %v", err),
+			&result.ToolCallItem{
+				Name:       tc.Name,
+				Parameters: tc.Parameters,
+			},
+			&result.ToolResultItem{
+				Name:   tc.Name,
+				Result: fmt.Sprintf("Error: %v", err),
+			},
+			err
+	}
+
+	// Record tool call event
+	tracing.ToolCall(ctx, agent.Name, tc.Name, tc.Parameters)
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if err := agent.Hooks.OnBeforeToolCall(ctx, agent, toolToCall, tc.Parameters); err != nil {
+			return fmt.Sprintf("Error: %v", err),
+				&result.ToolCallItem{
+					Name:       tc.Name,
+					Parameters: tc.Parameters,
+				},
+				&result.ToolResultItem{
+					Name:   tc.Name,
+					Result: fmt.Sprintf("Error: %v", err),
+				},
+				fmt.Errorf("before tool call hook error: %w", err)
+		}
+	}
+
+	// Execute the tool
+	toolResult, err := toolToCall.Execute(ctx, tc.Parameters)
+
+	// Record tool result event
+	tracing.ToolResult(ctx, agent.Name, tc.Name, toolResult, err)
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if hookErr := agent.Hooks.OnAfterToolCall(ctx, agent, toolToCall, toolResult, err); hookErr != nil {
+			return fmt.Sprintf("Error: %v", hookErr),
+				&result.ToolCallItem{
+					Name:       tc.Name,
+					Parameters: tc.Parameters,
+				},
+				&result.ToolResultItem{
+					Name:   tc.Name,
+					Result: fmt.Sprintf("Error: %v", hookErr),
+				},
+				fmt.Errorf("after tool call hook error: %w", hookErr)
+		}
+	}
+
+	// Handle tool execution error
+	if err != nil {
+		toolResult = fmt.Sprintf("Error: %v", err)
+	}
+
+	// Create the tool call item
+	toolCallItem := &result.ToolCallItem{
+		Name:       tc.Name,
+		Parameters: tc.Parameters,
+	}
+
+	// Create the tool result item
+	toolResultItem := &result.ToolResultItem{
+		Name:   tc.Name,
+		Result: toolResult,
+	}
+
+	// Create the tool result for the model
+	modelToolResult := map[string]interface{}{
+		"type": "tool_result",
+		"tool_call": map[string]interface{}{
+			"name":       tc.Name,
+			"id":         fmt.Sprintf("call_%d_%d", turn, idx),
+			"parameters": tc.Parameters,
+		},
+		"tool_result": map[string]interface{}{
+			"content": toolResult,
+		},
+	}
+
+	return modelToolResult, toolCallItem, toolResultItem, nil
 }
 
 // resolveModel resolves the model for the agent

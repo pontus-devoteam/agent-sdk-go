@@ -14,7 +14,7 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
 
-// Define the time tool
+// TimeTool provides functionality to get the current time in a specific format.
 type TimeTool struct {
 	Format string
 }

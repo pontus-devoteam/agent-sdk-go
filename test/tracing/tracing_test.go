@@ -84,7 +84,7 @@ func TestBasicTracing(t *testing.T) {
 	})
 
 	// Add model request event
-	modelReq := &model.ModelRequest{
+	modelReq := &model.Request{
 		SystemInstructions: "System instructions",
 		Input:              "Test input",
 	}
@@ -94,7 +94,7 @@ func TestBasicTracing(t *testing.T) {
 	})
 
 	// Add model response event
-	modelResp := &model.ModelResponse{
+	modelResp := &model.Response{
 		Content: "Test response",
 	}
 	traceCtx = tracer.ModelResponse(traceCtx, &tracing.ModelResponseOpts{
@@ -325,10 +325,29 @@ package tracing_test
 
 import (
 	"testing"
+
+	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
 
 // Test that just passes
 func TestBasic(t *testing.T) {
 	// This test just ensures the package compiles
 	// Actual tracing tests will be added in a future PR
+}
+
+// Test model request/response events
+func TestModelRequestResponseEvents(t *testing.T) {
+	// This is a placeholder test that will be implemented in a future PR
+	// For now, we're just ensuring it compiles
+
+	// Create a model request
+	_ = &model.Request{
+		SystemInstructions: "Test system instructions",
+		Input:              "Test input",
+	}
+
+	// Create a model response
+	_ = &model.Response{
+		Content: "Test content",
+	}
 }

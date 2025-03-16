@@ -8,7 +8,7 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
 )
 
-// MockModelProvider is a mock implementation of model.ModelProvider for testing
+// MockModelProvider is a mock implementation of model.Provider for testing
 type MockModelProvider struct{}
 
 func (p *MockModelProvider) GetModel(name string) (model.Model, error) {
@@ -18,13 +18,13 @@ func (p *MockModelProvider) GetModel(name string) (model.Model, error) {
 // MockModel is a mock implementation of model.Model for testing
 type MockModel struct{}
 
-func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest) (*model.ModelResponse, error) {
-	return &model.ModelResponse{
+func (m *MockModel) GetResponse(ctx context.Context, request *model.Request) (*model.Response, error) {
+	return &model.Response{
 		Content: "Mock response",
 	}, nil
 }
 
-func (m *MockModel) StreamResponse(ctx context.Context, request *model.ModelRequest) (<-chan model.StreamEvent, error) {
+func (m *MockModel) StreamResponse(ctx context.Context, request *model.Request) (<-chan model.StreamEvent, error) {
 	eventCh := make(chan model.StreamEvent)
 	go func() {
 		defer close(eventCh)
@@ -34,7 +34,7 @@ func (m *MockModel) StreamResponse(ctx context.Context, request *model.ModelRequ
 		}
 		eventCh <- model.StreamEvent{
 			Type: model.StreamEventTypeDone,
-			Response: &model.ModelResponse{
+			Response: &model.Response{
 				Content: "Mock stream content",
 			},
 		}
@@ -143,7 +143,7 @@ func TestRunConfig(t *testing.T) {
 				"key": "value",
 			},
 		},
-		ModelSettings: &model.ModelSettings{
+		ModelSettings: &model.Settings{
 			Temperature: func() *float64 { val := 0.7; return &val }(),
 			TopP:        func() *float64 { val := 0.9; return &val }(),
 		},

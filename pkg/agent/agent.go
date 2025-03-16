@@ -17,7 +17,7 @@ type Agent struct {
 
 	// Model configuration
 	Model         interface{} // Can be a string (model name) or a Model instance
-	ModelSettings *model.ModelSettings
+	ModelSettings *model.Settings
 
 	// Capabilities
 	Tools    []tool.Tool
@@ -27,7 +27,7 @@ type Agent struct {
 	OutputType reflect.Type
 
 	// Lifecycle hooks
-	Hooks AgentHooks
+	Hooks Hooks
 
 	// Internal state
 	mu sync.RWMutex
@@ -60,7 +60,7 @@ func (a *Agent) WithModel(model interface{}) *Agent {
 }
 
 // WithModelSettings sets the model settings for the agent
-func (a *Agent) WithModelSettings(settings *model.ModelSettings) *Agent {
+func (a *Agent) WithModelSettings(settings *model.Settings) *Agent {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.ModelSettings = settings
@@ -100,8 +100,8 @@ func (a *Agent) WithOutputType(outputType interface{}) *Agent {
 	return a
 }
 
-// WithHooks sets the hooks for the agent
-func (a *Agent) WithHooks(hooks AgentHooks) *Agent {
+// WithHooks sets the lifecycle hooks for the agent
+func (a *Agent) WithHooks(hooks Hooks) *Agent {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Hooks = hooks
@@ -144,11 +144,11 @@ func (a *Agent) Clone(overrides map[string]interface{}) *Agent {
 		case "Model":
 			clone.Model = value
 		case "ModelSettings":
-			clone.ModelSettings = value.(*model.ModelSettings)
+			clone.ModelSettings = value.(*model.Settings)
 		case "OutputType":
 			clone.WithOutputType(value)
 		case "Hooks":
-			clone.Hooks = value.(AgentHooks)
+			clone.Hooks = value.(Hooks)
 		}
 	}
 
@@ -168,7 +168,7 @@ func (a *Agent) AsTool(toolName, toolDescription string) tool.Tool {
 }
 
 // SetModelProvider sets the model provider for the agent
-func (a *Agent) SetModelProvider(provider model.ModelProvider) *Agent {
+func (a *Agent) SetModelProvider(provider model.Provider) *Agent {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	a.Model = provider

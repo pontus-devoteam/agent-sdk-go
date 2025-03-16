@@ -14,8 +14,8 @@ const (
 	DefaultBaseURL = "http://localhost:1234/v1"
 )
 
-// LMStudioProvider implements ModelProvider for LM Studio
-type LMStudioProvider struct {
+// Provider implements model.Provider for LM Studio
+type Provider struct {
 	// Configuration
 	BaseURL    string
 	APIKey     string
@@ -28,13 +28,13 @@ type LMStudioProvider struct {
 	mu sync.RWMutex
 }
 
-// NewLMStudioProvider creates a new LM Studio provider
-func NewLMStudioProvider(baseURL string) *LMStudioProvider {
+// NewLMStudioProvider creates a new Provider with default settings
+func NewLMStudioProvider(baseURL string) *Provider {
 	if baseURL == "" {
 		baseURL = DefaultBaseURL
 	}
 
-	return &LMStudioProvider{
+	return &Provider{
 		BaseURL: baseURL,
 		HTTPClient: &http.Client{
 			Timeout: 120 * time.Second,
@@ -43,7 +43,7 @@ func NewLMStudioProvider(baseURL string) *LMStudioProvider {
 }
 
 // WithAPIKey sets the API key for the provider
-func (p *LMStudioProvider) WithAPIKey(apiKey string) *LMStudioProvider {
+func (p *Provider) WithAPIKey(apiKey string) *Provider {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.APIKey = apiKey
@@ -51,7 +51,7 @@ func (p *LMStudioProvider) WithAPIKey(apiKey string) *LMStudioProvider {
 }
 
 // WithHTTPClient sets the HTTP client for the provider
-func (p *LMStudioProvider) WithHTTPClient(client *http.Client) *LMStudioProvider {
+func (p *Provider) WithHTTPClient(client *http.Client) *Provider {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.HTTPClient = client
@@ -59,7 +59,7 @@ func (p *LMStudioProvider) WithHTTPClient(client *http.Client) *LMStudioProvider
 }
 
 // WithDefaultModel sets the default model for the provider
-func (p *LMStudioProvider) WithDefaultModel(modelName string) *LMStudioProvider {
+func (p *Provider) WithDefaultModel(modelName string) *Provider {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.DefaultModel = modelName
@@ -67,7 +67,7 @@ func (p *LMStudioProvider) WithDefaultModel(modelName string) *LMStudioProvider 
 }
 
 // SetBaseURL sets the base URL for the provider
-func (p *LMStudioProvider) SetBaseURL(baseURL string) *LMStudioProvider {
+func (p *Provider) SetBaseURL(baseURL string) *Provider {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.BaseURL = baseURL
@@ -75,12 +75,12 @@ func (p *LMStudioProvider) SetBaseURL(baseURL string) *LMStudioProvider {
 }
 
 // SetDefaultModel sets the default model for the provider
-func (p *LMStudioProvider) SetDefaultModel(modelName string) *LMStudioProvider {
+func (p *Provider) SetDefaultModel(modelName string) *Provider {
 	return p.WithDefaultModel(modelName)
 }
 
 // GetModel returns a model by name
-func (p *LMStudioProvider) GetModel(name string) (model.Model, error) {
+func (p *Provider) GetModel(name string) (model.Model, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -93,13 +93,13 @@ func (p *LMStudioProvider) GetModel(name string) (model.Model, error) {
 	}
 
 	// Create a new model
-	return &LMStudioModel{
+	return &Model{
 		ModelName: name,
 		Provider:  p,
 	}, nil
 }
 
-// NewProvider creates a new LM Studio provider with default settings
-func NewProvider() *LMStudioProvider {
+// NewProvider creates a new provider with default settings
+func NewProvider() *Provider {
 	return NewLMStudioProvider(DefaultBaseURL)
 }

@@ -4,18 +4,18 @@ import (
 	"context"
 )
 
-// ModelRequest represents a request to a model
-type ModelRequest struct {
+// Request represents a request to a model
+type Request struct {
 	SystemInstructions string
 	Input              interface{}
 	Tools              []interface{}
 	OutputSchema       interface{}
 	Handoffs           []interface{}
-	Settings           *ModelSettings
+	Settings           *Settings
 }
 
-// ModelResponse represents a response from a model
-type ModelResponse struct {
+// Response represents a response from a model
+type Response struct {
 	Content     string
 	ToolCalls   []ToolCall
 	HandoffCall *HandoffCall
@@ -50,7 +50,7 @@ type StreamEvent struct {
 	HandoffCall *HandoffCall
 	Done        bool
 	Error       error
-	Response    *ModelResponse
+	Response    *Response
 }
 
 // StreamEvent types
@@ -62,8 +62,8 @@ const (
 	StreamEventTypeError    = "error"
 )
 
-// ModelSettings configures model-specific parameters
-type ModelSettings struct {
+// Settings configures model-specific parameters
+type Settings struct {
 	Temperature       *float64
 	TopP              *float64
 	FrequencyPenalty  *float64
@@ -76,14 +76,14 @@ type ModelSettings struct {
 // Model defines the interface for interacting with LLMs
 type Model interface {
 	// GetResponse gets a single response from the model
-	GetResponse(ctx context.Context, request *ModelRequest) (*ModelResponse, error)
+	GetResponse(ctx context.Context, request *Request) (*Response, error)
 
 	// StreamResponse streams a response from the model
-	StreamResponse(ctx context.Context, request *ModelRequest) (<-chan StreamEvent, error)
+	StreamResponse(ctx context.Context, request *Request) (<-chan StreamEvent, error)
 }
 
-// ModelProvider is responsible for looking up Models by name
-type ModelProvider interface {
+// Provider is responsible for looking up Models by name
+type Provider interface {
 	// GetModel returns a model by name
 	GetModel(modelName string) (Model, error)
 }

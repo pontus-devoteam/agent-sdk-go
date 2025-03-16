@@ -15,7 +15,7 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
 
-// MockModelProvider is a mock implementation of model.ModelProvider for testing
+// MockModelProvider is a mock implementation of model.Provider for testing
 type MockModelProvider struct{}
 
 func (p *MockModelProvider) GetModel(name string) (model.Model, error) {
@@ -25,7 +25,7 @@ func (p *MockModelProvider) GetModel(name string) (model.Model, error) {
 // MockModel is a mock implementation of model.Model for testing
 type MockModel struct{}
 
-func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest) (*model.ModelResponse, error) {
+func (m *MockModel) GetResponse(ctx context.Context, request *model.Request) (*model.Response, error) {
 	// This mock implementation will simulate an agent that:
 	// 1. Responds to simple greeting with a greeting
 	// 2. Uses a math tool if the input contains "calculate"
@@ -37,7 +37,7 @@ func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest
 	}
 
 	if input == "Hello" {
-		return &model.ModelResponse{
+		return &model.Response{
 			Content: "Hello! How can I help you today?",
 		}, nil
 	}
@@ -65,7 +65,7 @@ func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest
 		}
 
 		if foundAddTool {
-			return &model.ModelResponse{
+			return &model.Response{
 				Content: "I'll calculate that for you.",
 				ToolCalls: []model.ToolCall{
 					{
@@ -83,7 +83,7 @@ func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest
 
 	// Check if the request has an output schema
 	if request.OutputSchema != nil {
-		return &model.ModelResponse{
+		return &model.Response{
 			Content: "Here's the structured result.",
 			StructuredOutput: map[string]interface{}{
 				"result": "success",
@@ -93,12 +93,12 @@ func (m *MockModel) GetResponse(ctx context.Context, request *model.ModelRequest
 	}
 
 	// Default response
-	return &model.ModelResponse{
+	return &model.Response{
 		Content: "I'm a mock model response.",
 	}, nil
 }
 
-func (m *MockModel) StreamResponse(ctx context.Context, request *model.ModelRequest) (<-chan model.StreamEvent, error) {
+func (m *MockModel) StreamResponse(ctx context.Context, request *model.Request) (<-chan model.StreamEvent, error) {
 	eventCh := make(chan model.StreamEvent)
 	go func() {
 		defer close(eventCh)

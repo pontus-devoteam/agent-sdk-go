@@ -8,7 +8,7 @@ import (
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
 
-// MockModelProvider is a mock implementation of model.ModelProvider for testing
+// MockModelProvider is a mock implementation of model.Provider for testing
 type MockModelProvider struct{}
 
 func (p *MockModelProvider) GetModel(name string) (model.Model, error) {
