@@ -411,7 +411,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for d
 
 ## License
 
-[MIT License](LICENSE)
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE) file for details.
 
 ## Acknowledgements
 
