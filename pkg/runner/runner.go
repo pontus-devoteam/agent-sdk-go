@@ -95,39 +95,14 @@ func (r *Runner) RunSync(agent AgentType, opts *RunOptions) (*result.RunResult, 
 	return r.Run(ctx, agent, opts)
 }
 
-// RunStreaming executes an agent with streaming results
+// RunStreaming executes an agent with streaming responses
 func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOptions) (*result.StreamedRunResult, error) {
-	// Apply default options if not provided
-	if opts == nil {
-		opts = &RunOptions{}
+	// Initialize the streaming run with default options
+	var err error
+	opts, eventCh, err := r.initializeStreamingRun(ctx, agent, opts)
+	if err != nil {
+		return nil, err
 	}
-
-	// Apply default max turns if not provided
-	if opts.MaxTurns <= 0 {
-		r.mu.RLock()
-		opts.MaxTurns = r.defaultMaxTurns
-		r.mu.RUnlock()
-	}
-
-	// Apply default run config if not provided
-	if opts.RunConfig == nil {
-		opts.RunConfig = &RunConfig{}
-	}
-
-	// Apply default model provider if not provided
-	if opts.RunConfig.ModelProvider == nil {
-		r.mu.RLock()
-		opts.RunConfig.ModelProvider = r.defaultProvider
-		r.mu.RUnlock()
-	}
-
-	// Check if we have a model provider
-	if opts.RunConfig.ModelProvider == nil {
-		return nil, errors.New("no model provider available")
-	}
-
-	// Create a channel for stream events
-	eventCh := make(chan model.StreamEvent)
 
 	// Create a streamed run result
 	streamedResult := &result.StreamedRunResult{
@@ -146,26 +121,9 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 	go func() {
 		defer close(eventCh)
 
-		// Call hooks if provided
-		if opts.Hooks != nil {
-			if err := opts.Hooks.OnRunStart(ctx, agent, opts.Input); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("run start hook error: %w", err),
-				}
-				return
-			}
-		}
-
-		// Call agent hooks if provided
-		if agent.Hooks != nil {
-			if err := agent.Hooks.OnAgentStart(ctx, agent, opts.Input); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("agent start hook error: %w", err),
-				}
-				return
-			}
+		// Call run start hooks
+		if err := r.callRunStartHooks(ctx, agent, opts.Input, opts, eventCh); err != nil {
+			return
 		}
 
 		// Resolve the model
@@ -185,11 +143,11 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 		currentAgent := agent
 		currentInput := opts.Input
 		for turn := 1; turn <= opts.MaxTurns; turn++ {
-			// Update the current turn
+			// Update the current turn and agent
 			streamedResult.CurrentTurn = turn
 			streamedResult.CurrentAgent = currentAgent
 
-			// Call hooks if provided
+			// Call turn start hooks
 			if opts.Hooks != nil {
 				if err := opts.Hooks.OnTurnStart(ctx, currentAgent, turn); err != nil {
 					eventCh <- model.StreamEvent{
@@ -237,244 +195,32 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 				return
 			}
 
-			// Process the stream
-			var content string
-			var toolCalls []model.ToolCall
-			var handoffCall *model.HandoffCall
+			// Process the model stream
+			err = r.processModelStream(
+				ctx,
+				modelStream,
+				currentAgent,
+				opts,
+				streamedResult,
+				turn,
+				eventCh,
+				&consecutiveToolCalls,
+			)
 
-			for event := range modelStream {
-				// Check for errors
-				if event.Error != nil {
-					eventCh <- model.StreamEvent{
-						Type:  model.StreamEventTypeError,
-						Error: fmt.Errorf("model stream error: %w", event.Error),
-					}
-					return
+			// If the error is nil, we may need to update currentAgent and currentInput
+			// Typically this happens after a handoff
+			if err == nil && streamedResult.CurrentAgent != currentAgent {
+				currentAgent = streamedResult.CurrentAgent
+				// If there was a handoff, find the corresponding item to get its input
+				if handoffItem := findHandoffItem(streamedResult.RunResult.NewItems); handoffItem != nil {
+					currentInput = handoffItem.Input
 				}
+				continue
+			}
 
-				// Process the event based on its type
-				switch event.Type {
-				case model.StreamEventTypeContent:
-					// Append to content
-					content += event.Content
-
-					// Forward the event
-					eventCh <- event
-
-				case model.StreamEventTypeToolCall:
-					// Add to tool calls
-					if event.ToolCall != nil {
-						toolCalls = append(toolCalls, *event.ToolCall)
-					}
-
-					// Forward the event
-					eventCh <- event
-
-				case model.StreamEventTypeHandoff:
-					// Set handoff call
-					handoffCall = event.HandoffCall
-
-					// Forward the event
-					eventCh <- event
-
-				case model.StreamEventTypeDone:
-					// Create the final response
-					response := &model.Response{
-						Content:     content,
-						ToolCalls:   toolCalls,
-						HandoffCall: handoffCall,
-					}
-
-					// Call agent hooks if provided
-					if currentAgent.Hooks != nil {
-						if err := currentAgent.Hooks.OnAfterModelCall(ctx, currentAgent, response); err != nil {
-							eventCh <- model.StreamEvent{
-								Type:  model.StreamEventTypeError,
-								Error: fmt.Errorf("after model call hook error: %w", err),
-							}
-							return
-						}
-					}
-
-					// Process the response
-					// Check if we have a final output (structured output)
-					if currentAgent.OutputType != nil {
-						// TODO: Implement structured output parsing
-						streamedResult.RunResult.FinalOutput = content
-
-						// Call hooks if provided
-						if opts.Hooks != nil {
-							turnResult := &SingleTurnResult{
-								Agent:    currentAgent,
-								Response: response,
-								Output:   streamedResult.RunResult.FinalOutput,
-							}
-							if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("turn end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						// Send done event
-						eventCh <- model.StreamEvent{
-							Type:     model.StreamEventTypeDone,
-							Response: response,
-						}
-
-						// Mark as complete
-						streamedResult.IsComplete = true
-						streamedResult.RunResult.LastAgent = currentAgent
-
-						// Call agent hooks if provided
-						if agent.Hooks != nil {
-							if err := agent.Hooks.OnAgentEnd(ctx, agent, streamedResult.RunResult.FinalOutput); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("agent end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						// Call hooks if provided
-						if opts.Hooks != nil {
-							if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("run end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						return
-					}
-
-					// Check if we have a handoff
-					if handoffCall != nil {
-						// Reset consecutive tool calls counter on handoff
-						consecutiveToolCalls = 0
-
-						// Find the handoff agent
-						var handoffAgent AgentType
-						for _, h := range currentAgent.Handoffs {
-							if h.Name == handoffCall.AgentName {
-								handoffAgent = h
-								break
-							}
-						}
-
-						// If we found the handoff agent, update the current agent and input
-						if handoffAgent != nil {
-							// Record handoff event
-							tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
-
-							// Add a handoff item to the run result
-							handoffItem := &result.HandoffItem{
-								AgentName: handoffAgent.Name,
-								Input:     handoffCall.Input,
-							}
-							streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
-
-							// Update the current agent and input
-							currentAgent = handoffAgent
-							currentInput = handoffCall.Input
-
-							// Call agent hooks if provided
-							if currentAgent.Hooks != nil {
-								if err := currentAgent.Hooks.OnAgentStart(ctx, currentAgent, currentInput); err != nil {
-									eventCh <- model.StreamEvent{
-										Type:  model.StreamEventTypeError,
-										Error: fmt.Errorf("agent start hook error: %w", err),
-									}
-									return
-								}
-							}
-
-							// Call hooks if provided
-							if opts.Hooks != nil {
-								turnResult := &SingleTurnResult{
-									Agent:    currentAgent,
-									Response: response,
-									Output:   nil, // No output for handoff
-								}
-								if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-									eventCh <- model.StreamEvent{
-										Type:  model.StreamEventTypeError,
-										Error: fmt.Errorf("turn end hook error: %w", err),
-									}
-									return
-								}
-							}
-
-							// Break out of the current event loop to start the next turn with the new agent
-							break
-						} else {
-							// If we didn't find the handoff agent, log an error
-							log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
-
-							// Continue with the current agent
-							continue
-						}
-					} else if response.Content != "" {
-						// If we get here with content, we have a final output
-						streamedResult.RunResult.FinalOutput = response.Content
-
-						// Call hooks if provided
-						if opts.Hooks != nil {
-							turnResult := &SingleTurnResult{
-								Agent:    currentAgent,
-								Response: response,
-								Output:   streamedResult.RunResult.FinalOutput,
-							}
-							if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("turn end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						// Make sure we exit the loop by returning here
-						streamedResult.IsComplete = true
-						streamedResult.RunResult.LastAgent = currentAgent
-
-						// Call agent hooks if provided
-						if agent.Hooks != nil {
-							if err := agent.Hooks.OnAgentEnd(ctx, agent, streamedResult.RunResult.FinalOutput); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("agent end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						// Call hooks if provided
-						if opts.Hooks != nil {
-							if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
-								eventCh <- model.StreamEvent{
-									Type:  model.StreamEventTypeError,
-									Error: fmt.Errorf("run end hook error: %w", err),
-								}
-								return
-							}
-						}
-
-						return
-					}
-
-					// If we reached max turns without a final output, use the last response content
-					if turn == opts.MaxTurns && streamedResult.RunResult.FinalOutput == nil {
-						streamedResult.RunResult.FinalOutput = response.Content
-						streamedResult.IsComplete = true
-						return
-					}
-				}
+			// If there was an error or we're done, exit the loop
+			if err != nil || streamedResult.IsComplete {
+				return
 			}
 		}
 
@@ -486,6 +232,16 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 	}()
 
 	return streamedResult, nil
+}
+
+// findHandoffItem finds the most recent handoff item in the list of run items
+func findHandoffItem(items []result.RunItem) *result.HandoffItem {
+	for i := len(items) - 1; i >= 0; i-- {
+		if handoffItem, ok := items[i].(*result.HandoffItem); ok {
+			return handoffItem
+		}
+	}
+	return nil
 }
 
 // setupTracing sets up tracing for an agent if not disabled in the options
@@ -578,23 +334,8 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 	}()
 
 	// Call hooks if provided
-	if opts.Hooks != nil {
-		if err := opts.Hooks.OnRunStart(ctx, agent, input); err != nil {
-			return nil, fmt.Errorf("run start hook error: %w", err)
-		}
-	}
-
-	// Call agent hooks if provided
-	if agent.Hooks != nil {
-		if err := agent.Hooks.OnAgentStart(ctx, agent, input); err != nil {
-			return nil, fmt.Errorf("agent start hook error: %w", err)
-		}
-	}
-
-	// Resolve the model
-	model, err := r.resolveModel(agent, opts.RunConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to resolve model: %w", err)
+	if err := r.callStartHooks(ctx, agent, input, opts); err != nil {
+		return nil, err
 	}
 
 	// Variables to track consecutive tool calls
@@ -604,50 +345,15 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 	currentAgent := agent
 	currentInput := input
 	for turn := 1; turn <= opts.MaxTurns; turn++ {
-		// Call hooks if provided
-		if opts.Hooks != nil {
-			if err := opts.Hooks.OnTurnStart(ctx, currentAgent, turn); err != nil {
-				return nil, fmt.Errorf("turn start hook error: %w", err)
-			}
+		// Call turn start hooks
+		if err := r.callTurnStartHooks(ctx, currentAgent, turn, opts); err != nil {
+			return nil, err
 		}
 
-		// Prepare model settings
-		modelSettings := r.prepareModelSettings(currentAgent, opts.RunConfig, consecutiveToolCalls)
-
-		// Prepare model request
-		request := &ModelRequestType{
-			SystemInstructions: currentAgent.Instructions,
-			Input:              currentInput,
-			Tools:              r.prepareTools(currentAgent.Tools),
-			OutputSchema:       r.prepareOutputSchema(currentAgent.OutputType),
-			Handoffs:           r.prepareHandoffs(currentAgent.Handoffs),
-			Settings:           modelSettings,
-		}
-
-		// Call agent hooks if provided
-		if currentAgent.Hooks != nil {
-			if err := currentAgent.Hooks.OnBeforeModelCall(ctx, currentAgent, request); err != nil {
-				return nil, fmt.Errorf("before model call hook error: %w", err)
-			}
-		}
-
-		// Record model request event
-		tracing.ModelRequest(ctx, currentAgent.Name, fmt.Sprintf("%v", agent.Model), request.Input, request.Tools)
-
-		// Call the model
-		response, err := model.GetResponse(ctx, request)
+		// Prepare and execute model request
+		response, err := r.executeModelRequest(ctx, currentAgent, currentInput, consecutiveToolCalls, opts, turn)
 		if err != nil {
-			return nil, fmt.Errorf("model call error: %w", err)
-		}
-
-		// Record model response event
-		tracing.ModelResponse(ctx, currentAgent.Name, fmt.Sprintf("%v", agent.Model), response, err)
-
-		// Call agent hooks if provided
-		if currentAgent.Hooks != nil {
-			if err := currentAgent.Hooks.OnAfterModelCall(ctx, currentAgent, response); err != nil {
-				return nil, fmt.Errorf("after model call hook error: %w", err)
-			}
+			return nil, err
 		}
 
 		// Process the response
@@ -657,15 +363,8 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 			runResult.FinalOutput = response.Content
 
 			// Call hooks if provided
-			if opts.Hooks != nil {
-				turnResult := &SingleTurnResult{
-					Agent:    currentAgent,
-					Response: response,
-					Output:   runResult.FinalOutput,
-				}
-				if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-					return nil, fmt.Errorf("turn end hook error: %w", err)
-				}
+			if err := r.callTurnEndHooks(ctx, currentAgent, turn, response, runResult.FinalOutput, opts); err != nil {
+				return nil, err
 			}
 
 			break
@@ -673,144 +372,27 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 
 		// Check if we have a handoff
 		if response.HandoffCall != nil {
-			// Reset consecutive tool calls counter on handoff
-			consecutiveToolCalls = 0
-
-			// Find the handoff agent
-			var handoffAgent AgentType
-			for _, h := range currentAgent.Handoffs {
-				if h.Name == response.HandoffCall.AgentName {
-					handoffAgent = h
-					break
-				}
+			nextAgent, nextInput, err := r.processHandoff(ctx, currentAgent, response.HandoffCall, runResult, opts)
+			if err != nil {
+				return nil, err
 			}
 
-			// If we found the handoff agent, update the current agent and input
-			if handoffAgent != nil {
-				// Record handoff event
-				tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, response.HandoffCall.Input)
-
-				// Call agent hooks if provided
-				if currentAgent.Hooks != nil {
-					if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
-						return nil, fmt.Errorf("before handoff hook error: %w", err)
-					}
-				}
-
-				// Add the handoff to the result
-				handoffItem := &result.HandoffItem{
-					AgentName: handoffAgent.Name,
-					Input:     response.HandoffCall.Input,
-				}
-				runResult.NewItems = append(runResult.NewItems, handoffItem)
-
-				// Update the current agent and input
-				currentAgent = handoffAgent
-				currentInput = response.HandoffCall.Input
-
-				// Call agent hooks if provided
-				if currentAgent.Hooks != nil {
-					if err := currentAgent.Hooks.OnAfterHandoff(ctx, currentAgent, handoffAgent, response.HandoffCall.Input); err != nil {
-						return nil, fmt.Errorf("after handoff hook error: %w", err)
-					}
-				}
-
-				// Continue to the next turn
+			if nextAgent != nil {
+				// Reset consecutive tool calls counter on handoff
+				consecutiveToolCalls = 0
+				currentAgent = nextAgent
+				currentInput = nextInput
 				continue
 			}
 		}
 
 		// Check if we have tool calls
 		if len(response.ToolCalls) > 0 {
-			// Track consecutive tool calls to the same tool
-			if len(response.ToolCalls) == 1 {
-				consecutiveToolCalls++
-			} else {
-				// Multiple different tools called - reset counter
-				consecutiveToolCalls = 0
-			}
-
-			// Execute the tool calls
-			toolResults := make([]interface{}, 0, len(response.ToolCalls))
-			for i, tc := range response.ToolCalls {
-				// Execute the tool call with our helper function
-				modelToolResult, toolCallItem, toolResultItem, err := r.executeToolCall(ctx, currentAgent, tc, turn, i)
-
-				// Add the items to the result
-				runResult.NewItems = append(runResult.NewItems, toolCallItem)
-				runResult.NewItems = append(runResult.NewItems, toolResultItem)
-
-				// Add the tool result to the list for model input
-				toolResults = append(toolResults, modelToolResult)
-
-				// If we had a critical error that wasn't handled in executeToolCall, return it
-				if err != nil && (toolCallItem == nil || toolResultItem == nil) {
-					return nil, fmt.Errorf("tool execution error: %w", err)
-				}
-			}
-
-			// Update the input with the tool results
-			if len(toolResults) > 0 {
-				// If the input is a string, convert it to a list
-				if _, ok := currentInput.(string); ok {
-					currentInput = []interface{}{
-						map[string]interface{}{
-							"type":    "message",
-							"role":    "user",
-							"content": currentInput,
-						},
-					}
-				}
-
-				// If the input is not a list, create a new list
-				inputList, ok := currentInput.([]interface{})
-				if !ok {
-					inputList = []interface{}{}
-				}
-
-				// Add the response as an assistant message
-				if response.Content != "" {
-					inputList = append(inputList, map[string]interface{}{
-						"type":    "message",
-						"role":    "assistant",
-						"content": response.Content,
-					})
-				} else {
-					// Add a message representing the tool calls
-					var toolCallsDescription string
-					if len(response.ToolCalls) == 1 {
-						toolCallsDescription = fmt.Sprintf("You called the tool: %s", response.ToolCalls[0].Name)
-					} else {
-						toolNames := make([]string, len(response.ToolCalls))
-						for i, tc := range response.ToolCalls {
-							toolNames[i] = tc.Name
-						}
-						toolCallsDescription = fmt.Sprintf("You called these tools: %s", strings.Join(toolNames, ", "))
-					}
-
-					inputList = append(inputList, map[string]interface{}{
-						"type":    "message",
-						"role":    "assistant",
-						"content": toolCallsDescription,
-					})
-				}
-
-				// Add the tool results
-				inputList = append(inputList, toolResults...)
-
-				// If we've had several consecutive calls to the same tool, add a prompt
-				if consecutiveToolCalls >= 3 {
-					inputList = append(inputList, map[string]interface{}{
-						"type":    "message",
-						"role":    "user",
-						"content": "Now that you have the information from the tool(s), please provide a complete response to my original question.",
-					})
-				}
-
-				// Update the input
-				currentInput = inputList
-
-				// Continue to the next turn
+			// Process tool calls and update input
+			nextInput, continueLoop, toolCallCount := r.processToolCalls(ctx, currentAgent, response, currentInput, consecutiveToolCalls, runResult, turn, opts)
+			if continueLoop {
+				currentInput = nextInput
+				consecutiveToolCalls = toolCallCount
 				continue
 			}
 		} else if response.Content != "" {
@@ -818,15 +400,8 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 			runResult.FinalOutput = response.Content
 
 			// Call hooks if provided
-			if opts.Hooks != nil {
-				turnResult := &SingleTurnResult{
-					Agent:    currentAgent,
-					Response: response,
-					Output:   runResult.FinalOutput,
-				}
-				if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-					return nil, fmt.Errorf("turn end hook error: %w", err)
-				}
+			if err := r.callTurnEndHooks(ctx, currentAgent, turn, response, runResult.FinalOutput, opts); err != nil {
+				return nil, err
 			}
 
 			break
@@ -838,21 +413,276 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 		}
 	}
 
+	// Call end hooks
+	if err := r.callEndHooks(ctx, agent, runResult, opts); err != nil {
+		return nil, err
+	}
+
+	return runResult, nil
+}
+
+// callStartHooks calls the hooks at the start of a run
+func (r *Runner) callStartHooks(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions) error {
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		if err := opts.Hooks.OnRunStart(ctx, agent, input); err != nil {
+			return fmt.Errorf("run start hook error: %w", err)
+		}
+	}
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if err := agent.Hooks.OnAgentStart(ctx, agent, input); err != nil {
+			return fmt.Errorf("agent start hook error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// callTurnStartHooks calls the hooks at the start of a turn
+func (r *Runner) callTurnStartHooks(ctx context.Context, agent AgentType, turn int, opts *RunOptions) error {
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		if err := opts.Hooks.OnTurnStart(ctx, agent, turn); err != nil {
+			return fmt.Errorf("turn start hook error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// callTurnEndHooks calls the hooks at the end of a turn
+func (r *Runner) callTurnEndHooks(ctx context.Context, agent AgentType, turn int, response *model.Response, output interface{}, opts *RunOptions) error {
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		turnResult := &SingleTurnResult{
+			Agent:    agent,
+			Response: response,
+			Output:   output,
+		}
+		if err := opts.Hooks.OnTurnEnd(ctx, agent, turn, turnResult); err != nil {
+			return fmt.Errorf("turn end hook error: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// callEndHooks calls the hooks at the end of a run
+func (r *Runner) callEndHooks(ctx context.Context, agent AgentType, runResult *result.RunResult, opts *RunOptions) error {
 	// Call agent hooks if provided
 	if agent.Hooks != nil {
 		if err := agent.Hooks.OnAgentEnd(ctx, agent, runResult.FinalOutput); err != nil {
-			return nil, fmt.Errorf("agent end hook error: %w", err)
+			return fmt.Errorf("agent end hook error: %w", err)
 		}
 	}
 
 	// Call hooks if provided
 	if opts.Hooks != nil {
 		if err := opts.Hooks.OnRunEnd(ctx, runResult); err != nil {
-			return nil, fmt.Errorf("run end hook error: %w", err)
+			return fmt.Errorf("run end hook error: %w", err)
 		}
 	}
 
-	return runResult, nil
+	return nil
+}
+
+// executeModelRequest prepares and executes a model request
+func (r *Runner) executeModelRequest(ctx context.Context, agent AgentType, input interface{}, consecutiveToolCalls int, opts *RunOptions, turn int) (*model.Response, error) {
+	// Prepare model settings
+	modelSettings := r.prepareModelSettings(agent, opts.RunConfig, consecutiveToolCalls)
+
+	// Prepare model request
+	request := &ModelRequestType{
+		SystemInstructions: agent.Instructions,
+		Input:              input,
+		Tools:              r.prepareTools(agent.Tools),
+		OutputSchema:       r.prepareOutputSchema(agent.OutputType),
+		Handoffs:           r.prepareHandoffs(agent.Handoffs),
+		Settings:           modelSettings,
+	}
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if err := agent.Hooks.OnBeforeModelCall(ctx, agent, request); err != nil {
+			return nil, fmt.Errorf("before model call hook error: %w", err)
+		}
+	}
+
+	// Record model request event
+	tracing.ModelRequest(ctx, agent.Name, fmt.Sprintf("%v", agent.Model), request.Input, request.Tools)
+
+	// Resolve model
+	modelInstance, err := r.resolveModel(agent, opts.RunConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve model: %w", err)
+	}
+
+	// Call the model
+	response, err := modelInstance.GetResponse(ctx, request)
+	if err != nil {
+		return nil, fmt.Errorf("model call error: %w", err)
+	}
+
+	// Record model response event
+	tracing.ModelResponse(ctx, agent.Name, fmt.Sprintf("%v", agent.Model), response, err)
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if err := agent.Hooks.OnAfterModelCall(ctx, agent, response); err != nil {
+			return nil, fmt.Errorf("after model call hook error: %w", err)
+		}
+	}
+
+	return response, nil
+}
+
+// processHandoff handles a handoff to another agent
+func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, handoffCall *model.HandoffCall, runResult *result.RunResult, opts *RunOptions) (AgentType, interface{}, error) {
+	// Find the handoff agent
+	var handoffAgent AgentType
+	for _, h := range currentAgent.Handoffs {
+		if h.Name == handoffCall.AgentName {
+			handoffAgent = h
+			break
+		}
+	}
+
+	// If we found the handoff agent, update the current agent and input
+	if handoffAgent != nil {
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+
+		// Call agent hooks if provided
+		if currentAgent.Hooks != nil {
+			if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
+				return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
+			}
+		}
+
+		// Add the handoff to the result
+		handoffItem := &result.HandoffItem{
+			AgentName: handoffAgent.Name,
+			Input:     handoffCall.Input,
+		}
+		runResult.NewItems = append(runResult.NewItems, handoffItem)
+
+		// Call agent hooks if provided
+		if currentAgent.Hooks != nil {
+			if err := currentAgent.Hooks.OnAfterHandoff(ctx, currentAgent, handoffAgent, handoffCall.Input); err != nil {
+				return nil, nil, fmt.Errorf("after handoff hook error: %w", err)
+			}
+		}
+
+		return handoffAgent, handoffCall.Input, nil
+	}
+
+	// If we didn't find the handoff agent, log it but continue with current agent
+	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
+	return nil, nil, nil
+}
+
+// processToolCalls processes tool calls and updates the input
+func (r *Runner) processToolCalls(ctx context.Context, agent AgentType, response *model.Response, currentInput interface{}, currentConsecutiveCalls int, runResult *result.RunResult, turn int, opts *RunOptions) (interface{}, bool, int) {
+	// Track consecutive tool calls to the same tool
+	consecutiveToolCalls := currentConsecutiveCalls
+	if len(response.ToolCalls) == 1 {
+		consecutiveToolCalls++
+	} else {
+		// Multiple different tools called - reset counter
+		consecutiveToolCalls = 0
+	}
+
+	// Execute the tool calls
+	toolResults := make([]interface{}, 0, len(response.ToolCalls))
+	for i, tc := range response.ToolCalls {
+		// Execute the tool call with our helper function
+		modelToolResult, toolCallItem, toolResultItem, err := r.executeToolCall(ctx, agent, tc, turn, i)
+
+		// Add the items to the result
+		runResult.NewItems = append(runResult.NewItems, toolCallItem)
+		runResult.NewItems = append(runResult.NewItems, toolResultItem)
+
+		// Add the tool result to the list for model input
+		toolResults = append(toolResults, modelToolResult)
+
+		// If we had a critical error that wasn't handled in executeToolCall, return it
+		if err != nil && (toolCallItem == nil || toolResultItem == nil) {
+			// This shouldn't happen, but if it does, just stop processing
+			return currentInput, false, consecutiveToolCalls
+		}
+	}
+
+	// Update the input with the tool results
+	if len(toolResults) > 0 {
+		nextInput := r.updateInputWithToolResults(currentInput, response, toolResults, consecutiveToolCalls)
+		return nextInput, true, consecutiveToolCalls
+	}
+
+	// If we didn't have any tool results, don't continue the loop
+	return currentInput, false, consecutiveToolCalls
+}
+
+// updateInputWithToolResults updates the input with the tool results
+func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *model.Response, toolResults []interface{}, consecutiveToolCalls int) interface{} {
+	// If the input is a string, convert it to a list
+	if _, ok := currentInput.(string); ok {
+		currentInput = []interface{}{
+			map[string]interface{}{
+				"type":    "message",
+				"role":    "user",
+				"content": currentInput,
+			},
+		}
+	}
+
+	// If the input is not a list, create a new list
+	inputList, ok := currentInput.([]interface{})
+	if !ok {
+		inputList = []interface{}{}
+	}
+
+	// Add the response as an assistant message
+	if response.Content != "" {
+		inputList = append(inputList, map[string]interface{}{
+			"type":    "message",
+			"role":    "assistant",
+			"content": response.Content,
+		})
+	} else {
+		// Add a message representing the tool calls
+		var toolCallsDescription string
+		if len(response.ToolCalls) == 1 {
+			toolCallsDescription = fmt.Sprintf("You called the tool: %s", response.ToolCalls[0].Name)
+		} else {
+			toolNames := make([]string, len(response.ToolCalls))
+			for i, tc := range response.ToolCalls {
+				toolNames[i] = tc.Name
+			}
+			toolCallsDescription = fmt.Sprintf("You called these tools: %s", strings.Join(toolNames, ", "))
+		}
+
+		inputList = append(inputList, map[string]interface{}{
+			"type":    "message",
+			"role":    "assistant",
+			"content": toolCallsDescription,
+		})
+	}
+
+	// Add the tool results
+	inputList = append(inputList, toolResults...)
+
+	// If we've had several consecutive calls to the same tool, add a prompt
+	if consecutiveToolCalls >= 3 {
+		inputList = append(inputList, map[string]interface{}{
+			"type":    "message",
+			"role":    "user",
+			"content": "Now that you have the information from the tool(s), please provide a complete response to my original question.",
+		})
+	}
+
+	return inputList
 }
 
 // executeToolCall executes a tool call and returns the result
@@ -1146,4 +976,369 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 	}
 
 	return result
+}
+
+// initializeStreamingRun initializes the streaming run with default options and creates the result channel
+func (r *Runner) initializeStreamingRun(ctx context.Context, agent AgentType, opts *RunOptions) (*RunOptions, chan model.StreamEvent, error) {
+	// Apply default options if not provided
+	if opts == nil {
+		opts = &RunOptions{}
+	}
+
+	// Apply default max turns if not provided
+	if opts.MaxTurns <= 0 {
+		r.mu.RLock()
+		opts.MaxTurns = r.defaultMaxTurns
+		r.mu.RUnlock()
+	}
+
+	// Apply default run config if not provided
+	if opts.RunConfig == nil {
+		opts.RunConfig = &RunConfig{}
+	}
+
+	// Apply default model provider if not provided
+	if opts.RunConfig.ModelProvider == nil {
+		r.mu.RLock()
+		opts.RunConfig.ModelProvider = r.defaultProvider
+		r.mu.RUnlock()
+	}
+
+	// Check if we have a model provider
+	if opts.RunConfig.ModelProvider == nil {
+		return nil, nil, errors.New("no model provider available")
+	}
+
+	// Create a channel for stream events
+	eventCh := make(chan model.StreamEvent)
+
+	return opts, eventCh, nil
+}
+
+// callRunStartHooks calls the start hooks for the run and agent
+func (r *Runner) callRunStartHooks(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions, eventCh chan model.StreamEvent) error {
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		if err := opts.Hooks.OnRunStart(ctx, agent, input); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("run start hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	// Call agent hooks if provided
+	if agent.Hooks != nil {
+		if err := agent.Hooks.OnAgentStart(ctx, agent, input); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("agent start hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+// processModelStream processes the model's stream events
+func (r *Runner) processModelStream(
+	ctx context.Context,
+	modelStream <-chan model.StreamEvent,
+	currentAgent AgentType,
+	opts *RunOptions,
+	streamedResult *result.StreamedRunResult,
+	turn int,
+	eventCh chan model.StreamEvent,
+	consecutiveToolCalls *int,
+) error {
+	var content string
+	var toolCalls []model.ToolCall
+	var handoffCall *model.HandoffCall
+
+	for event := range modelStream {
+		// Check for errors
+		if event.Error != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("model stream error: %w", event.Error),
+			}
+			return event.Error
+		}
+
+		// Process the event based on its type
+		switch event.Type {
+		case model.StreamEventTypeContent:
+			// Append to content
+			content += event.Content
+			// Forward the event
+			eventCh <- event
+
+		case model.StreamEventTypeToolCall:
+			// Add to tool calls
+			if event.ToolCall != nil {
+				toolCalls = append(toolCalls, *event.ToolCall)
+			}
+			// Forward the event
+			eventCh <- event
+
+		case model.StreamEventTypeHandoff:
+			// Set handoff call
+			handoffCall = event.HandoffCall
+			// Forward the event
+			eventCh <- event
+
+		case model.StreamEventTypeDone:
+			// Create the final response
+			response := &model.Response{
+				Content:     content,
+				ToolCalls:   toolCalls,
+				HandoffCall: handoffCall,
+			}
+
+			// Call agent hooks if provided
+			if currentAgent.Hooks != nil {
+				if err := currentAgent.Hooks.OnAfterModelCall(ctx, currentAgent, response); err != nil {
+					eventCh <- model.StreamEvent{
+						Type:  model.StreamEventTypeError,
+						Error: fmt.Errorf("after model call hook error: %w", err),
+					}
+					return err
+				}
+			}
+
+			// Handle structured output if applicable
+			if currentAgent.OutputType != nil {
+				return r.handleFinalOutput(ctx, currentAgent, response, opts, streamedResult, turn, eventCh)
+			}
+
+			// Handle handoff if applicable
+			if handoffCall != nil {
+				// Process handoff and prepare for next turn
+				nextAgent, _, err := r.handleHandoff(
+					ctx,
+					currentAgent,
+					handoffCall,
+					response,
+					opts,
+					streamedResult,
+					turn,
+					eventCh,
+				)
+				if err != nil {
+					return err
+				}
+
+				// Update the current agent for the next turn
+				streamedResult.CurrentAgent = nextAgent
+				*consecutiveToolCalls = 0
+				return nil // Exit the event loop to start the next turn
+			}
+
+			// Handle regular text response
+			if response.Content != "" {
+				return r.handleTextResponse(ctx, currentAgent, response, opts, streamedResult, turn, eventCh)
+			}
+
+			// If we reached max turns without a final output, use the last response content
+			if turn == opts.MaxTurns && streamedResult.RunResult.FinalOutput == nil {
+				streamedResult.RunResult.FinalOutput = response.Content
+				streamedResult.IsComplete = true
+				return nil
+			}
+		}
+	}
+
+	return nil
+}
+
+// handleHandoff processes a handoff to another agent
+func (r *Runner) handleHandoff(
+	ctx context.Context,
+	currentAgent AgentType,
+	handoffCall *model.HandoffCall,
+	response *model.Response,
+	opts *RunOptions,
+	streamedResult *result.StreamedRunResult,
+	turn int,
+	eventCh chan model.StreamEvent,
+) (AgentType, interface{}, error) {
+	// Find the handoff agent
+	var handoffAgent AgentType
+	for _, h := range currentAgent.Handoffs {
+		if h.Name == handoffCall.AgentName {
+			handoffAgent = h
+			break
+		}
+	}
+
+	// If we found the handoff agent, update the current agent and input
+	if handoffAgent != nil {
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+
+		// Add a handoff item to the run result
+		handoffItem := &result.HandoffItem{
+			AgentName: handoffAgent.Name,
+			Input:     handoffCall.Input,
+		}
+		streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
+
+		// Call agent hooks if provided
+		if handoffAgent.Hooks != nil {
+			if err := handoffAgent.Hooks.OnAgentStart(ctx, handoffAgent, handoffCall.Input); err != nil {
+				eventCh <- model.StreamEvent{
+					Type:  model.StreamEventTypeError,
+					Error: fmt.Errorf("agent start hook error: %w", err),
+				}
+				return nil, nil, err
+			}
+		}
+
+		// Call hooks if provided
+		if opts.Hooks != nil {
+			turnResult := &SingleTurnResult{
+				Agent:    currentAgent,
+				Response: response,
+				Output:   nil, // No output for handoff
+			}
+			if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
+				eventCh <- model.StreamEvent{
+					Type:  model.StreamEventTypeError,
+					Error: fmt.Errorf("turn end hook error: %w", err),
+				}
+				return nil, nil, err
+			}
+		}
+
+		return handoffAgent, handoffCall.Input, nil
+	}
+
+	// If we didn't find the handoff agent, log an error
+	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
+	return currentAgent, nil, nil
+}
+
+// handleFinalOutput processes final output (structured or text)
+func (r *Runner) handleFinalOutput(
+	ctx context.Context,
+	currentAgent AgentType,
+	response *model.Response,
+	opts *RunOptions,
+	streamedResult *result.StreamedRunResult,
+	turn int,
+	eventCh chan model.StreamEvent,
+) error {
+	// If the agent has an output type defined, treat this as structured output
+	// TODO: Implement structured output parsing
+	streamedResult.RunResult.FinalOutput = response.Content
+
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		turnResult := &SingleTurnResult{
+			Agent:    currentAgent,
+			Response: response,
+			Output:   streamedResult.RunResult.FinalOutput,
+		}
+		if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("turn end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	// Send done event
+	eventCh <- model.StreamEvent{
+		Type:     model.StreamEventTypeDone,
+		Response: response,
+	}
+
+	// Mark as complete
+	streamedResult.IsComplete = true
+	streamedResult.RunResult.LastAgent = currentAgent
+
+	// Call agent hooks if provided
+	if currentAgent.Hooks != nil {
+		if err := currentAgent.Hooks.OnAgentEnd(ctx, currentAgent, streamedResult.RunResult.FinalOutput); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("agent end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("run end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	return nil
+}
+
+// handleTextResponse processes a text response
+func (r *Runner) handleTextResponse(
+	ctx context.Context,
+	currentAgent AgentType,
+	response *model.Response,
+	opts *RunOptions,
+	streamedResult *result.StreamedRunResult,
+	turn int,
+	eventCh chan model.StreamEvent,
+) error {
+	// Use the response content as the final output
+	streamedResult.RunResult.FinalOutput = response.Content
+
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		turnResult := &SingleTurnResult{
+			Agent:    currentAgent,
+			Response: response,
+			Output:   streamedResult.RunResult.FinalOutput,
+		}
+		if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("turn end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	// Mark as complete
+	streamedResult.IsComplete = true
+	streamedResult.RunResult.LastAgent = currentAgent
+
+	// Call agent hooks if provided
+	if currentAgent.Hooks != nil {
+		if err := currentAgent.Hooks.OnAgentEnd(ctx, currentAgent, streamedResult.RunResult.FinalOutput); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("agent end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	// Call hooks if provided
+	if opts.Hooks != nil {
+		if err := opts.Hooks.OnRunEnd(ctx, streamedResult.RunResult); err != nil {
+			eventCh <- model.StreamEvent{
+				Type:  model.StreamEventTypeError,
+				Error: fmt.Errorf("run end hook error: %w", err),
+			}
+			return err
+		}
+	}
+
+	return nil
 }

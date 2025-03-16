@@ -365,6 +365,228 @@ func (m *Model) StreamResponse(ctx context.Context, request *model.Request) (<-c
 	return eventChan, nil
 }
 
+// addSystemMessage adds a system message to the chat request if provided
+func addSystemMessage(chatRequest *ChatCompletionRequest, instructions string) {
+	if instructions != "" {
+		chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
+			Role:    "system",
+			Content: instructions,
+		})
+	}
+}
+
+// addUserInputMessages processes the input and adds appropriate messages to the chat request
+func addUserInputMessages(chatRequest *ChatCompletionRequest, input interface{}) {
+	if input == nil {
+		return
+	}
+
+	if inputStr, ok := input.(string); ok {
+		// If input is a string, add it as a user message
+		chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
+			Role:    "user",
+			Content: inputStr,
+		})
+	} else if inputList, ok := input.([]interface{}); ok {
+		// If input is a list, process each item
+		processInputList(chatRequest, inputList)
+	}
+}
+
+// processInputList processes a list of input items and adds them as messages
+func processInputList(chatRequest *ChatCompletionRequest, inputList []interface{}) {
+	for _, item := range inputList {
+		if message, ok := item.(map[string]interface{}); ok {
+			// Handle different message types
+			if message["type"] == "message" {
+				// Add a regular message
+				chatMessage := createChatMessageFromMap(message)
+				chatRequest.Messages = append(chatRequest.Messages, chatMessage)
+			} else if message["type"] == "tool_result" {
+				// Add a tool result message
+				toolResultMessage := createToolResultMessage(message)
+				if toolResultMessage != nil {
+					chatRequest.Messages = append(chatRequest.Messages, *toolResultMessage)
+				}
+			}
+		}
+	}
+}
+
+// createChatMessageFromMap creates a ChatMessage from a map representation
+func createChatMessageFromMap(message map[string]interface{}) ChatMessage {
+	chatMessage := ChatMessage{
+		Role:    message["role"].(string),
+		Content: message["content"].(string),
+	}
+
+	// Add name if provided
+	if name, ok := message["name"].(string); ok && name != "" {
+		chatMessage.Name = name
+	}
+
+	return chatMessage
+}
+
+// createToolResultMessage creates a tool result message from a map representation
+func createToolResultMessage(message map[string]interface{}) *ChatMessage {
+	// Extract tool result and tool call
+	toolResult, ok := message["tool_result"].(map[string]interface{})
+	if !ok || toolResult == nil {
+		// Skip invalid tool results
+		return nil
+	}
+
+	toolCall, ok := message["tool_call"].(map[string]interface{})
+	if !ok || toolCall == nil {
+		// Skip invalid tool calls
+		return nil
+	}
+
+	// Create a tool result message
+	content := fmt.Sprintf("Tool '%s' returned: %v",
+		toolCall["name"].(string),
+		toolResult["content"])
+
+	return &ChatMessage{
+		Role:    "tool",
+		Content: content,
+		Name:    toolCall["name"].(string),
+	}
+}
+
+// addToolsToRequest adds tools to the chat request
+func addToolsToRequest(chatRequest *ChatCompletionRequest, tools []interface{}) {
+	if len(tools) == 0 {
+		return
+	}
+
+	for _, tool := range tools {
+		chatTool := convertToolToChatTool(tool)
+		if chatTool != nil {
+			chatRequest.Tools = append(chatRequest.Tools, *chatTool)
+		}
+	}
+}
+
+// convertToolToChatTool converts a tool to a ChatTool
+func convertToolToChatTool(tool interface{}) *ChatTool {
+	if tool == nil {
+		return nil
+	}
+
+	var name string
+	var description string
+	var parameters map[string]interface{}
+
+	// Check if the tool is already in OpenAI format, a map[string]interface{}, or implements the Tool interface
+	if openAITool, ok := tool.(map[string]interface{}); ok {
+		// Check if this is an OpenAI-compatible tool definition
+		if openAITool["type"] == "function" && openAITool["function"] != nil {
+			// Extract from OpenAI format
+			function := openAITool["function"].(map[string]interface{})
+			name = function["name"].(string)
+			description = function["description"].(string)
+			parameters = function["parameters"].(map[string]interface{})
+		} else if openAITool["name"] != nil {
+			// Legacy direct format
+			name = openAITool["name"].(string)
+			description = openAITool["description"].(string)
+			parameters = openAITool["parameters"].(map[string]interface{})
+		} else {
+			// Skip invalid tool format
+			return nil
+		}
+	} else {
+		// Tool implements the interface, call methods
+		toolInterface := tool.(interface {
+			GetName() string
+			GetDescription() string
+			GetParametersSchema() map[string]interface{}
+		})
+		name = toolInterface.GetName()
+		description = toolInterface.GetDescription()
+		parameters = toolInterface.GetParametersSchema()
+	}
+
+	return &ChatTool{
+		Type: "function",
+		Function: ChatToolFunction{
+			Name:        name,
+			Description: description,
+			Parameters:  parameters,
+		},
+	}
+}
+
+// addHandoffToolsToRequest adds handoff tools to the chat request
+func addHandoffToolsToRequest(chatRequest *ChatCompletionRequest, handoffs []interface{}) {
+	if len(handoffs) == 0 {
+		return
+	}
+
+	for _, handoff := range handoffs {
+		// Convert the handoff to a chat tool
+		if handoffTool, ok := handoff.(map[string]interface{}); ok {
+			// It's already in the right format
+			if handoffTool["type"] == "function" && handoffTool["function"] != nil {
+				function := handoffTool["function"].(map[string]interface{})
+
+				chatTool := ChatTool{
+					Type: "function",
+					Function: ChatToolFunction{
+						Name:        function["name"].(string),
+						Description: function["description"].(string),
+						Parameters:  function["parameters"].(map[string]interface{}),
+					},
+				}
+
+				chatRequest.Tools = append(chatRequest.Tools, chatTool)
+				fmt.Printf("Added handoff tool to request: %s\n", function["name"].(string))
+			}
+		}
+	}
+}
+
+// applyModelSettings applies settings from the request to the chat request
+func applyModelSettings(chatRequest *ChatCompletionRequest, settings *model.Settings) {
+	if settings == nil {
+		return
+	}
+
+	if settings.Temperature != nil {
+		chatRequest.Temperature = *settings.Temperature
+	}
+	if settings.TopP != nil {
+		chatRequest.TopP = *settings.TopP
+	}
+	if settings.FrequencyPenalty != nil {
+		chatRequest.FrequencyPenalty = *settings.FrequencyPenalty
+	}
+	if settings.PresencePenalty != nil {
+		chatRequest.PresencePenalty = *settings.PresencePenalty
+	}
+	if settings.MaxTokens != nil {
+		chatRequest.MaxTokens = *settings.MaxTokens
+	}
+	if settings.ToolChoice != nil {
+		// Handle tool_choice parameter
+		if *settings.ToolChoice == "auto" || *settings.ToolChoice == "none" {
+			chatRequest.ToolChoice = *settings.ToolChoice
+		} else {
+			// Assume it's a specific tool name
+			chatRequest.ToolChoice = map[string]interface{}{
+				"type": "function",
+				"function": map[string]interface{}{
+					"name": *settings.ToolChoice,
+				},
+			}
+		}
+	}
+	// Note: parallel_tool_calls is not directly supported in the OpenAI API request
+	// It's a client-side setting that affects how tool calls are processed
+}
+
 // constructRequest constructs a chat completion request from a model request
 func (m *Model) constructRequest(request *model.Request) (*ChatCompletionRequest, error) {
 	// Create the chat request
@@ -375,65 +597,10 @@ func (m *Model) constructRequest(request *model.Request) (*ChatCompletionRequest
 	}
 
 	// Add system message if provided
-	if request.SystemInstructions != "" {
-		chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
-			Role:    "system",
-			Content: request.SystemInstructions,
-		})
-	}
+	addSystemMessage(chatRequest, request.SystemInstructions)
 
 	// Add input messages
-	if input, ok := request.Input.(string); ok {
-		// If input is a string, add it as a user message
-		chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
-			Role:    "user",
-			Content: input,
-		})
-	} else if inputList, ok := request.Input.([]interface{}); ok {
-		// If input is a list, add each item as a message
-		for _, item := range inputList {
-			if message, ok := item.(map[string]interface{}); ok {
-				// Handle different message types
-				if message["type"] == "message" {
-					chatMessage := ChatMessage{
-						Role:    message["role"].(string),
-						Content: message["content"].(string),
-					}
-
-					// Add name if provided
-					if name, ok := message["name"].(string); ok && name != "" {
-						chatMessage.Name = name
-					}
-
-					chatRequest.Messages = append(chatRequest.Messages, chatMessage)
-				} else if message["type"] == "tool_result" {
-					// Handle tool results
-					toolResult, ok := message["tool_result"].(map[string]interface{})
-					if !ok || toolResult == nil {
-						// Skip invalid tool results
-						continue
-					}
-
-					toolCall, ok := message["tool_call"].(map[string]interface{})
-					if !ok || toolCall == nil {
-						// Skip invalid tool calls
-						continue
-					}
-
-					// Create a tool result message
-					content := fmt.Sprintf("Tool '%s' returned: %v",
-						toolCall["name"].(string),
-						toolResult["content"])
-
-					chatRequest.Messages = append(chatRequest.Messages, ChatMessage{
-						Role:    "tool",
-						Content: content,
-						Name:    toolCall["name"].(string),
-					})
-				}
-			}
-		}
-	}
+	addUserInputMessages(chatRequest, request.Input)
 
 	// Add tools if provided
 	if len(request.Tools) > 0 || len(request.Handoffs) > 0 {
@@ -445,116 +612,13 @@ func (m *Model) constructRequest(request *model.Request) (*ChatCompletionRequest
 
 		chatRequest.Tools = make([]ChatTool, 0, capacity)
 
-		// First add regular tools
-		for _, tool := range request.Tools {
-			// Convert the tool to a chat tool
-			var name string
-			var description string
-			var parameters map[string]interface{}
-
-			// Check if the tool is already in OpenAI format, a map[string]interface{}, or implements the Tool interface
-			if openAITool, ok := tool.(map[string]interface{}); ok {
-				// Check if this is an OpenAI-compatible tool definition
-				if openAITool["type"] == "function" && openAITool["function"] != nil {
-					// Extract from OpenAI format
-					function := openAITool["function"].(map[string]interface{})
-					name = function["name"].(string)
-					description = function["description"].(string)
-					parameters = function["parameters"].(map[string]interface{})
-				} else if openAITool["name"] != nil {
-					// Legacy direct format
-					name = openAITool["name"].(string)
-					description = openAITool["description"].(string)
-					parameters = openAITool["parameters"].(map[string]interface{})
-				} else {
-					// Skip invalid tool format
-					continue
-				}
-			} else if tool != nil {
-				// Tool implements the interface, call methods
-				toolInterface := tool.(interface {
-					GetName() string
-					GetDescription() string
-					GetParametersSchema() map[string]interface{}
-				})
-				name = toolInterface.GetName()
-				description = toolInterface.GetDescription()
-				parameters = toolInterface.GetParametersSchema()
-			} else {
-				// Skip nil tools
-				continue
-			}
-
-			chatTool := ChatTool{
-				Type: "function",
-				Function: ChatToolFunction{
-					Name:        name,
-					Description: description,
-					Parameters:  parameters,
-				},
-			}
-
-			chatRequest.Tools = append(chatRequest.Tools, chatTool)
-		}
-
-		// Then add handoff tools
-		for _, handoff := range request.Handoffs {
-			// Convert the handoff to a chat tool
-			if handoffTool, ok := handoff.(map[string]interface{}); ok {
-				// It's already in the right format
-				if handoffTool["type"] == "function" && handoffTool["function"] != nil {
-					function := handoffTool["function"].(map[string]interface{})
-
-					chatTool := ChatTool{
-						Type: "function",
-						Function: ChatToolFunction{
-							Name:        function["name"].(string),
-							Description: function["description"].(string),
-							Parameters:  function["parameters"].(map[string]interface{}),
-						},
-					}
-
-					chatRequest.Tools = append(chatRequest.Tools, chatTool)
-					fmt.Printf("Added handoff tool to request: %s\n", function["name"].(string))
-				}
-			}
-		}
+		// Add tools and handoffs
+		addToolsToRequest(chatRequest, request.Tools)
+		addHandoffToolsToRequest(chatRequest, request.Handoffs)
 	}
 
 	// Apply model settings if provided
-	if request.Settings != nil {
-		if request.Settings.Temperature != nil {
-			chatRequest.Temperature = *request.Settings.Temperature
-		}
-		if request.Settings.TopP != nil {
-			chatRequest.TopP = *request.Settings.TopP
-		}
-		if request.Settings.FrequencyPenalty != nil {
-			chatRequest.FrequencyPenalty = *request.Settings.FrequencyPenalty
-		}
-		if request.Settings.PresencePenalty != nil {
-			chatRequest.PresencePenalty = *request.Settings.PresencePenalty
-		}
-		if request.Settings.MaxTokens != nil {
-			chatRequest.MaxTokens = *request.Settings.MaxTokens
-		}
-		if request.Settings.ToolChoice != nil {
-			// Handle tool_choice parameter
-			if *request.Settings.ToolChoice == "auto" || *request.Settings.ToolChoice == "none" {
-				chatRequest.ToolChoice = *request.Settings.ToolChoice
-			} else {
-				// Assume it's a specific tool name
-				chatRequest.ToolChoice = map[string]interface{}{
-					"type": "function",
-					"function": map[string]interface{}{
-						"name": *request.Settings.ToolChoice,
-					},
-				}
-			}
-		}
-		// Note: parallel_tool_calls is not directly supported in the OpenAI API request
-		// It's a client-side setting that affects how tool calls are processed
-	}
+	applyModelSettings(chatRequest, request.Settings)
 
 	return chatRequest, nil
 }

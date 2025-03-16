@@ -280,22 +280,14 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 	frontendAgent.WithHandoffs(mathAgent, weatherAgent)
 
 	// Create a runner
-	runner := runner.NewRunner()
-	runner.WithDefaultProvider(provider)
+	r := runner.NewRunner()
+	r.WithDefaultProvider(provider)
 
 	// Run example with a math query
 	fmt.Println("Running with a math query...")
-	result, err := runner.Run(context.Background(), frontendAgent, &RunOptions{
+	result, err := r.RunSync(frontendAgent, &runner.RunOptions{
 		Input:    "What is 42 divided by 6?",
 		MaxTurns: 20,
-		RunConfig: &RunConfig{
-			Model:           "gemma-3-4b-it",
-			ModelProvider:   provider,
-			TracingDisabled: false, // Enable tracing explicitly
-			TracingConfig: &TracingConfig{
-				WorkflowName: "math_query",
-			},
-		},
 	})
 	if err != nil {
 		log.Fatalf("Error running agent: %v", err)
@@ -314,17 +306,9 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 
 	// Run example with a weather query
 	fmt.Println("\nRunning with a weather query...")
-	result, err = runner.Run(context.Background(), frontendAgent, &RunOptions{
+	result, err = r.RunSync(frontendAgent, &runner.RunOptions{
 		Input:    "What's the current weather in Paris?",
 		MaxTurns: 20,
-		RunConfig: &RunConfig{
-			Model:           "gemma-3-4b-it",
-			ModelProvider:   provider,
-			TracingDisabled: false, // Enable tracing explicitly
-			TracingConfig: &TracingConfig{
-				WorkflowName: "weather_query",
-			},
-		},
 	})
 	if err != nil {
 		log.Fatalf("Error running agent: %v", err)
@@ -343,17 +327,9 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 
 	// Run example with a mixed query
 	fmt.Println("\nRunning with a mixed query...")
-	result, err = runner.Run(context.Background(), frontendAgent, &RunOptions{
+	result, err = r.RunSync(frontendAgent, &runner.RunOptions{
 		Input:    "What is 15 × 4 and what's the current time?",
 		MaxTurns: 20,
-		RunConfig: &RunConfig{
-			Model:           "gemma-3-4b-it",
-			ModelProvider:   provider,
-			TracingDisabled: false, // Enable tracing explicitly
-			TracingConfig: &TracingConfig{
-				WorkflowName: "mixed_query",
-			},
-		},
 	})
 	if err != nil {
 		log.Fatalf("Error running agent: %v", err)
