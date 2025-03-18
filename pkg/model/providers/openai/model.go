@@ -4,11 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -22,8 +22,8 @@ import (
 // Model implements the model.Model interface for OpenAI
 type Model struct {
 	// Configuration
-	ModelName    string
-	Provider     *Provider
+	ModelName string
+	Provider  *Provider
 }
 
 // ChatMessage represents a message in a chat
@@ -131,7 +131,7 @@ func (m *Model) GetResponse(ctx context.Context, request *model.Request) (*model
 
 		// Try to get a response
 		response, lastErr = m.getResponseOnce(ctx, request)
-		
+
 		// If successful or not a rate limit error, return
 		if lastErr == nil {
 			return response, nil
@@ -233,7 +233,7 @@ func (m *Model) StreamResponse(ctx context.Context, request *model.Request) (<-c
 		defer close(eventChan)
 
 		var lastErr error
-		
+
 		// Try with exponential backoff
 		for attempt := 0; attempt <= m.Provider.MaxRetries; attempt++ {
 			// Wait for rate limit
@@ -256,7 +256,7 @@ func (m *Model) StreamResponse(ctx context.Context, request *model.Request) (<-c
 
 			// Try to stream a response
 			err := m.streamResponseOnce(ctx, request, eventChan)
-			
+
 			// If successful, return
 			if err == nil {
 				return
@@ -864,20 +864,26 @@ func (m *Model) handleError(response *http.Response) error {
 // isRateLimitError checks if an error is a rate limit error
 func isRateLimitError(err error) bool {
 	errStr := err.Error()
-	return strings.Contains(errStr, "rate limit") || 
-	       strings.Contains(errStr, "Rate limit") ||
-	       strings.Contains(errStr, "429") ||
-	       strings.Contains(errStr, "Too Many Requests") ||
-	       strings.Contains(errStr, "usage cap")
+	return strings.Contains(errStr, "rate limit") ||
+		strings.Contains(errStr, "Rate limit") ||
+		strings.Contains(errStr, "429") ||
+		strings.Contains(errStr, "Too Many Requests") ||
+		strings.Contains(errStr, "usage cap")
 }
 
 // calculateBackoff calculates the backoff duration for retries
 func calculateBackoff(attempt int, baseDelay time.Duration) time.Duration {
 	// Calculate exponential backoff: baseDelay * 2^attempt
 	backoff := float64(baseDelay) * math.Pow(2, float64(attempt))
-	
+
 	// Add jitter: random value between 0 and backoff/2
-	jitter := rand.Float64() * (backoff / 2)
-	
+	// Use crypto/rand for secure random number generation
+	b := make([]byte, 8)
+	if _, err := rand.Read(b); err != nil {
+		// If we can't generate a secure random number, fall back to no jitter
+		return time.Duration(backoff)
+	}
+	jitter := float64(b[0]) / 255.0 * (backoff / 2)
+
 	return time.Duration(backoff + jitter)
-} 
+}

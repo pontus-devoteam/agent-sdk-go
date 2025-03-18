@@ -22,16 +22,16 @@ func main() {
 
 	// Create a provider for OpenAI
 	provider := openai.NewProvider(apiKey)
-	
+
 	// Configure the provider
 	provider.SetDefaultModel("gpt-3.5-turbo")
-	
+
 	// Customize rate limits if needed (adjust these based on your OpenAI tier)
 	provider.WithRateLimit(50, 100000) // 50 requests per minute, 100,000 tokens per minute
-	
+
 	// Configure retry settings
 	provider.WithRetryConfig(3, 2*time.Second)
-	
+
 	fmt.Println("Provider configured with:")
 	fmt.Println("- Model:", "gpt-3.5-turbo")
 	fmt.Println("- Rate limit:", "50 requests/min, 100,000 tokens/min")
@@ -43,7 +43,7 @@ func main() {
 		"Get the current time in a specified format",
 		func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 			format := time.RFC3339
-			
+
 			if formatParam, ok := params["format"].(string); ok && formatParam != "" {
 				switch formatParam {
 				case "rfc3339":
@@ -58,7 +58,7 @@ func main() {
 					return time.Now().Unix(), nil
 				}
 			}
-			
+
 			return time.Now().Format(format), nil
 		},
 	).WithSchema(map[string]interface{}{
@@ -97,7 +97,7 @@ func main() {
 	// Print the result
 	fmt.Println("\nAgent response:")
 	fmt.Println(result.FinalOutput)
-	
+
 	// If there are any responses, display token usage from the last response
 	if len(result.RawResponses) > 0 {
 		lastResponse := result.RawResponses[len(result.RawResponses)-1]
@@ -119,7 +119,7 @@ func main() {
 	// Print the result
 	fmt.Println("\nAgent response:")
 	fmt.Println(result.FinalOutput)
-	
+
 	// If there are any responses, display token usage from the last response
 	if len(result.RawResponses) > 0 {
 		lastResponse := result.RawResponses[len(result.RawResponses)-1]
@@ -150,4 +150,4 @@ func main() {
 			fmt.Println("\n[Done]")
 		}
 	}
-} 
+}

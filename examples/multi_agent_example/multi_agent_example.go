@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log"
-	"math/rand"
+	"math/big"
 	"strings"
 	"time"
 
@@ -113,10 +114,14 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 				max = int(maxParam)
 			}
 
-			// Seed the random number generator
-			rand.New(rand.NewSource(time.Now().UnixNano()))
+			// Generate cryptographically secure random number
+			delta := max - min + 1
+			n, err := rand.Int(rand.Reader, big.NewInt(int64(delta)))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate random number: %v", err)
+			}
 
-			return rand.Intn(max-min+1) + min, nil
+			return min + int(n.Int64()), nil
 		},
 	).WithSchema(map[string]interface{}{
 		"type": "object",
@@ -202,13 +207,26 @@ IMPORTANT: Never end with a tool call. Always provide a final human-readable res
 			}
 			temperatures := []int{-10, 0, 5, 10, 15, 20, 25, 30, 35}
 
-			// Seed the random generator
-			r := rand.New(rand.NewSource(time.Now().UnixNano()))
+			// Generate cryptographically secure random indexes
+			condIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(weatherConditions))))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate random weather condition: %v", err)
+			}
+
+			tempIdx, err := rand.Int(rand.Reader, big.NewInt(int64(len(temperatures))))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate random temperature: %v", err)
+			}
+
+			humidityBig, err := rand.Int(rand.Reader, big.NewInt(100))
+			if err != nil {
+				return nil, fmt.Errorf("failed to generate random humidity: %v", err)
+			}
 
 			// Generate mock weather data
-			condition := weatherConditions[r.Intn(len(weatherConditions))]
-			temperature := temperatures[r.Intn(len(temperatures))]
-			humidity := r.Intn(100)
+			condition := weatherConditions[condIdx.Int64()]
+			temperature := temperatures[tempIdx.Int64()]
+			humidity := int(humidityBig.Int64())
 
 			return map[string]interface{}{
 				"location":    location,

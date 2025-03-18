@@ -38,9 +38,9 @@ type Provider struct {
 	DefaultModel string
 
 	// Rate limiting configuration
-	RPM       int // Requests per minute
-	TPM       int // Tokens per minute
-	MaxRetries int // Maximum number of retries
+	RPM        int           // Requests per minute
+	TPM        int           // Tokens per minute
+	MaxRetries int           // Maximum number of retries
 	RetryAfter time.Duration // Time to wait before retrying
 
 	// Internal state
@@ -54,8 +54,8 @@ type Provider struct {
 // NewOpenAIProvider creates a new Provider with default settings
 func NewOpenAIProvider(apiKey string) *Provider {
 	return &Provider{
-		BaseURL:      DefaultBaseURL,
-		APIKey:       apiKey,
+		BaseURL: DefaultBaseURL,
+		APIKey:  apiKey,
 		HTTPClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
@@ -152,8 +152,8 @@ func (p *Provider) GetModel(name string) (model.Model, error) {
 
 	// Create a new model
 	return &Model{
-		ModelName:    name,
-		Provider:     p,
+		ModelName: name,
+		Provider:  p,
 	}, nil
 }
 
@@ -170,9 +170,19 @@ func (p *Provider) WaitForRateLimit() {
 	}
 
 	// Check if we've exceeded our rate limits
-	if p.requestCount >= p.RPM {
-		// Wait for the rate limiter's next tick
-		<-p.rateLimiter.C
+	if p.requestCount >= p.RPM || p.tokenCount >= p.TPM {
+		// Calculate how long to wait based on which limit was exceeded
+		var waitTime time.Duration
+		if p.requestCount >= p.RPM {
+			waitTime = time.Minute / time.Duration(p.RPM)
+		}
+		if p.tokenCount >= p.TPM {
+			tokenWaitTime := time.Minute / time.Duration(p.TPM)
+			if tokenWaitTime > waitTime {
+				waitTime = tokenWaitTime
+			}
+		}
+		time.Sleep(waitTime)
 	}
 
 	// Increment request count
@@ -183,7 +193,7 @@ func (p *Provider) WaitForRateLimit() {
 func (p *Provider) UpdateTokenCount(tokens int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	p.tokenCount += tokens
 }
 
@@ -191,7 +201,7 @@ func (p *Provider) UpdateTokenCount(tokens int) {
 func (p *Provider) ResetRateLimiter() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	
+
 	p.requestCount = 0
 	p.tokenCount = 0
 	p.lastResetTime = time.Now()
@@ -200,4 +210,4 @@ func (p *Provider) ResetRateLimiter() {
 // NewProvider creates a new provider with default settings, requires an API key
 func NewProvider(apiKey string) *Provider {
 	return NewOpenAIProvider(apiKey)
-} 
+}
