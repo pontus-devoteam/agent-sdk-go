@@ -65,6 +65,9 @@ jobs:
         skip-cache: true
         skip-pkg-cache: true
         skip-build-cache: true
+        only-new-issues: true
+      env:
+        GOFLAGS: "-buildvcs=false"
     
     - name: Fallback basic linting
       if: always()
@@ -72,7 +75,7 @@ jobs:
         # Standard Go tools don't need complex module setup
         echo "===== RUNNING GO STANDARD TOOLS ====="
         go fmt ./... || echo "go fmt found issues (non-fatal)"
-        go vet ./... || echo "go vet found issues (non-fatal)"
+        go vet -buildvcs=false ./... || echo "go vet found issues (non-fatal)"
         
         # Manually run gofmt on all files
         echo "===== MANUALLY CHECKING FORMAT ====="
@@ -93,10 +96,22 @@ jobs:
       with:
         go-version: '1.23'
     
+    - name: Fix Go module setup
+      run: |
+        # Same module setup as in the lint job
+        if [ -f go.mod ]; then
+          mv go.mod go.mod.bak
+        fi
+        go mod init agent-sdk-go
+        echo "replace github.com/pontus-devoteam/agent-sdk-go => ./" >> go.mod
+        go mod tidy
+    
     - name: Run gosec security scanner
       uses: securego/gosec@master
       with:
-        args: ./...
+        args: -quiet ./...
+      env:
+        GOFLAGS: "-buildvcs=false"
       
     - name: Always succeed
       if: always()

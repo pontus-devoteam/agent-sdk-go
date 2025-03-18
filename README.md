@@ -3,21 +3,33 @@
 </p>
 
 <div align="center">
+  <p><strong>Build, deploy, and scale AI agents with ease</strong></p>
   
-  [![Code Quality](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg)](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml)
-  [![Go Report Card](https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go)](https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go)
-  [![Go Version](https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod)
-  [![PkgGoDev](https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg)](https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go)
-  [![CodeQL](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml)
-  [![License](https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE)
-  [![Stars](https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/stargazers)
-  [![Contributors](https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors)
-  [![Last Commit](https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go)](https://github.com/pontus-devoteam/agent-sdk-go/commits/main)
+  <a href="https://go-agent.org"><img src="https://img.shields.io/badge/website-go--agent.org-blue?style=for-the-badge" alt="Website" /></a>
+  <a href="https://go-agent.org/#waitlist"><img src="https://img.shields.io/badge/Cloud_Waitlist-Sign_Up-4285F4?style=for-the-badge" alt="Cloud Waitlist" /></a>
   
 </div>
 
 <p align="center">
-  A powerful framework for building AI agents with Go that supports multiple LLM providers, function calling, agent handoffs, and more.
+  Agent SDK Go is an open-source framework for building powerful AI agents with Go that supports multiple LLM providers, function calling, agent handoffs, and more.
+</p>
+
+<p align="center">
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml"><img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality"></a>
+    <a href="https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go"><img src="https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go" alt="Go Report Card"></a>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version"></a>
+    <a href="https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go"><img src="https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg" alt="PkgGoDev"></a><br>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml"><img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License"></a>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/stargazers"><img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars"></a>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors"><img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors"></a>
+    <a href="https://github.com/pontus-devoteam/agent-sdk-go/commits/main"><img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit"></a>
+</p>
+
+<p align="center">
+  <a href="https://go-agent.org/docs">📚 Documentation</a> •
+  <a href="https://go-agent.org/#waitlist">☁️ Cloud Waitlist</a> •
+  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE">📜 License</a>
 </p>
 
 <p align="center">
@@ -32,7 +44,7 @@
 - [Features](#-features)
 - [Installation](#-installation)
 - [Quick Start](#-quick-start)
-- [LM Studio Setup](#-lm-studio-setup)
+- [Provider Setup](#-provider-setup)
 - [Key Components](#-key-components)
   - [Agent](#agent)
   - [Runner](#runner)
@@ -45,6 +57,7 @@
   - [Streaming](#streaming)
   - [OpenAI Tool Definitions](#openai-tool-definitions)
 - [Examples](#-examples)
+- [Cloud Support](#-cloud-support)
 - [Development](#-development)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -55,6 +68,8 @@
 ## 🔍 Overview
 
 Agent SDK Go provides a comprehensive framework for building AI agents in Go. It allows you to create agents that can use tools, perform handoffs to other specialized agents, and produce structured output - all while supporting multiple LLM providers.
+
+**Visit [go-agent.org](https://go-agent.org) for comprehensive documentation, examples, and cloud service waitlist.**
 
 ## 🌟 Features
 
@@ -544,4 +559,23 @@ This project is licensed under the MIT License - see the [LICENSE](https://githu
 
 ## 🙏 Acknowledgements
 
-This project is inspired by [OpenAI's Assistants API](https://platform.openai.com/docs/assistants/overview) and [OpenAI's Python Agent SDK](https://github.com/openai/openai-agents-py), with the goal of providing similar capabilities in Go while being compatible with local LLMs. 
+This project is inspired by [OpenAI's Assistants API](https://platform.openai.com/docs/assistants/overview) and [OpenAI's Python Agent SDK](https://github.com/openai/openai-agents-py), with the goal of providing similar capabilities in Go while being compatible with local LLMs.
+
+## ☁️ Cloud Support
+
+For production deployments, we're developing a fully managed cloud service. Join our waitlist to be among the first to access:
+
+- **Managed Agent Deployment** - Deploy agents without infrastructure hassle
+- **Horizontal Scaling** - Handle any traffic volume
+- **Observability & Monitoring** - Track performance and usage
+- **Cost Optimization** - Pay only for what you use
+- **Enterprise Security** - SOC2 compliance and data protection
+
+**[Sign up for the Cloud Waitlist →](https://go-agent.org/#waitlist)**
+
+## 👥 Community & Support
+
+- **Website**: [go-agent.org](https://go-agent.org)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/pontus-devoteam/agent-sdk-go/issues)
+- **Discussions**: [Join the conversation](https://github.com/pontus-devoteam/agent-sdk-go/discussions)
+- **Waitlist**: [Join the cloud service waitlist](https://go-agent.org/#waitlist) 
