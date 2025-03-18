@@ -18,7 +18,7 @@ echo "=== Running security checks ==="
 
 # Run tests
 echo "=== Running tests ==="
-cd test && make test
+cd test && make ci-test
 cd ..
 
 echo "All checks passed! ✅"

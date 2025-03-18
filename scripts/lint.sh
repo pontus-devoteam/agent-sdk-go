@@ -32,12 +32,12 @@ fi
 
 echo "Running Go vet..."
 # Run go vet to catch common errors
-go vet ./...
+go vet -buildvcs=false ./...
 echo "✅ Go vet check passed"
 
 echo "Running Go build..."
 # Ensure the code compiles
-go build ./...
+go build -buildvcs=false ./...
 echo "✅ Go build check passed"
 
 echo "All checks passed! ✅" 
