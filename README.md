@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="./agent-sdk-go.jpg" alt="Agent SDK Go" width="400">
+  <img src="./agent-sdk-go-header.gif" alt="Agent SDK Go">
 </p>
 
 <div align="center">
@@ -68,9 +68,72 @@ Agent SDK Go provides a comprehensive framework for building AI agents in Go. It
 
 ## 📦 Installation
 
+There are several ways to add this module to your project:
+
+### Option 1: Using `go get` (Recommended)
+
 ```bash
 go get github.com/pontus-devoteam/agent-sdk-go
 ```
+
+### Option 2: Add to your imports and use `go mod tidy`
+
+1. Add imports to your Go files:
+   ```go
+   import (
+       "github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
+       "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
+       "github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
+       "github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
+       // Import other packages as needed
+   )
+   ```
+
+2. Run `go mod tidy` to automatically fetch dependencies:
+   ```bash
+   go mod tidy
+   ```
+
+### Option 3: Manually edit your `go.mod` file
+
+Add the following line to your `go.mod` file:
+```
+require github.com/pontus-devoteam/agent-sdk-go latest
+```
+
+Then run:
+```bash
+go mod tidy
+```
+
+### New Project Setup
+
+If you're starting a new project:
+
+1. Create and navigate to your project directory:
+   ```bash
+   mkdir my-agent-project
+   cd my-agent-project
+   ```
+
+2. Initialize a new Go module:
+   ```bash
+   go mod init github.com/yourusername/my-agent-project
+   ```
+
+3. Install the Agent SDK:
+   ```bash
+   go get github.com/pontus-devoteam/agent-sdk-go
+   ```
+
+### Troubleshooting
+
+- If you encounter version conflicts, you can specify a version:
+  ```bash
+  go get github.com/pontus-devoteam/agent-sdk-go@v0.1.0  # Replace with desired version
+  ```
+
+- For private repositories or local development, consider using Go workspaces or replace directives in your go.mod file.
 
 > **Note:** Requires Go 1.23 or later.
 
