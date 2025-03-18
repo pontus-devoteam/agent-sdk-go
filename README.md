@@ -58,13 +58,13 @@ Agent SDK Go provides a comprehensive framework for building AI agents in Go. It
 
 ## 🌟 Features
 
-- ✅ **Multiple LLM Provider Support** - Starting with LM Studio for local model integration
+- ✅ **Multiple LLM Provider Support** - Support for both OpenAI and LM Studio
 - ✅ **Tool Integration** - Call Go functions directly from your LLM
 - ✅ **Agent Handoffs** - Create complex multi-agent workflows with specialized agents
 - ✅ **Structured Output** - Parse responses into Go structs
 - ✅ **Streaming** - Get real-time streaming responses
 - ✅ **Tracing & Monitoring** - Debug your agent flows
-- ✅ **OpenAI Compatibility** - Compatible with OpenAI tool definitions
+- ✅ **OpenAI Compatibility** - Compatible with OpenAI tool definitions and API
 
 ## 📦 Installation
 
@@ -148,16 +148,21 @@ import (
     "log"
 
     "github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
+    "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/openai"  // or "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
     "github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
     "github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
 
 func main() {
-    // Create a provider for LM Studio
-    provider := lmstudio.NewProvider()
-    provider.SetBaseURL("http://127.0.0.1:1234/v1")
-    provider.SetDefaultModel("gemma-3-4b-it") // Replace with your local model
+    // Create a provider (OpenAI example)
+    provider := openai.NewProvider()
+    provider.SetAPIKey("your-openai-api-key")
+    provider.SetDefaultModel("gpt-3.5-turbo")
+
+    // Or use LM Studio (local model example)
+    // provider := lmstudio.NewProvider()
+    // provider.SetBaseURL("http://127.0.0.1:1234/v1")
+    // provider.SetDefaultModel("gemma-3-4b-it")
 
     // Create a function tool
     getWeather := tool.NewFunctionTool(
@@ -181,7 +186,7 @@ func main() {
     // Create an agent
     assistant := agent.NewAgent("Assistant")
     assistant.SetModelProvider(provider)
-    assistant.WithModel("gemma-3-4b-it")
+    assistant.WithModel("gpt-3.5-turbo")  // or "gemma-3-4b-it" for LM Studio
     assistant.SetSystemInstructions("You are a helpful assistant.")
     assistant.WithTools(getWeather)
 
@@ -202,7 +207,24 @@ func main() {
 }
 ```
 
-## 🖥️ LM Studio Setup
+## 🖥️ Provider Setup
+
+### OpenAI Setup
+
+To use the OpenAI provider:
+
+1. **Get an API Key**
+   - Sign up at [OpenAI](https://platform.openai.com/)
+   - Create an API key in your account settings
+
+2. **Configure the Provider**
+   ```go
+   provider := openai.NewProvider()
+   provider.SetAPIKey("your-openai-api-key")
+   provider.SetDefaultModel("gpt-3.5-turbo")  // or any other OpenAI model
+   ```
+
+### LM Studio Setup
 
 <details>
 <summary>Click to expand setup instructions</summary>
