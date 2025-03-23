@@ -170,8 +170,7 @@ import (
 
 func main() {
     // Create a provider (OpenAI example)
-    provider := openai.NewProvider()
-    provider.SetAPIKey("your-openai-api-key")
+    provider := openai.NewProvider("your-openai-api-key")
     provider.SetDefaultModel("gpt-3.5-turbo")
 
     // Or use LM Studio (local model example)
@@ -206,11 +205,11 @@ func main() {
     assistant.WithTools(getWeather)
 
     // Create a runner
-    runner := runner.NewRunner()
-    runner.WithDefaultProvider(provider)
+    r := runner.NewRunner()
+    r.WithDefaultProvider(provider)
 
     // Run the agent
-    result, err := runner.RunSync(assistant, &runner.RunOptions{
+    result, err := r.RunSync(assistant, &runner.RunOptions{
         Input: "What's the weather in Tokyo?",
     })
     if err != nil {
