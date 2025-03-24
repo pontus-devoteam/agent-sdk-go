@@ -19,7 +19,7 @@ builds:
     main: .
 
 archives:
-  - format: tar.gz
+  - id: default
     name_template: >-
       {{ .ProjectName }}_
       {{- title .Os }}_
@@ -27,9 +27,8 @@ archives:
       {{- else if eq .Arch "386" }}i386
       {{- else }}{{ .Arch }}{{ end }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    format_overrides:
-      - goos: windows
-        format: zip
+    builds:
+      - default
     files:
       - LICENSE
       - README.md
@@ -38,6 +37,10 @@ archives:
       - cmd/**/*
       - go.mod
       - go.sum
+    format: tar.gz
+    format_overrides:
+      - goos: windows
+        format: zip
 
 checksum:
   name_template: 'checksums.txt'
