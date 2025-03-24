@@ -1,6 +1,8 @@
 package runner
 
 import (
+	"time"
+
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
 
@@ -20,6 +22,125 @@ type RunOptions struct {
 
 	// RunConfig is global configuration
 	RunConfig *RunConfig
+
+	// WorkflowConfig configures workflow-specific behavior
+	WorkflowConfig *WorkflowConfig
+}
+
+// WorkflowConfig configures workflow behavior
+type WorkflowConfig struct {
+	// RetryConfig configures retry behavior for handoffs and tool calls
+	RetryConfig *RetryConfig
+
+	// StateManagement configures how workflow state is managed
+	StateManagement *StateManagementConfig
+
+	// ValidationConfig configures input/output validation between phases
+	ValidationConfig *ValidationConfig
+
+	// RecoveryConfig configures how to handle and recover from failures
+	RecoveryConfig *RecoveryConfig
+}
+
+// RetryConfig configures retry behavior
+type RetryConfig struct {
+	// MaxRetries is the maximum number of retries for a failed operation
+	MaxRetries int
+
+	// RetryDelay is the delay between retries
+	RetryDelay time.Duration
+
+	// RetryBackoffFactor is the factor to multiply delay by after each retry
+	RetryBackoffFactor float64
+
+	// RetryableErrors are error types that should trigger a retry
+	RetryableErrors []string
+
+	// OnRetry is called before each retry attempt
+	OnRetry func(attempt int, err error) error
+}
+
+// StateManagementConfig configures workflow state management
+type StateManagementConfig struct {
+	// PersistState indicates whether to persist workflow state
+	PersistState bool
+
+	// StateStore is the interface for storing workflow state
+	StateStore WorkflowStateStore
+
+	// CheckpointFrequency determines how often to save state
+	CheckpointFrequency time.Duration
+
+	// RestoreOnFailure indicates whether to restore state on failure
+	RestoreOnFailure bool
+}
+
+// ValidationConfig configures validation behavior
+type ValidationConfig struct {
+	// PreHandoffValidation validates data before handoff
+	PreHandoffValidation []ValidationRule
+
+	// PostHandoffValidation validates data after handoff
+	PostHandoffValidation []ValidationRule
+
+	// PhaseTransitionValidation validates phase transitions
+	PhaseTransitionValidation []ValidationRule
+}
+
+// ValidationRule defines a validation rule
+type ValidationRule struct {
+	// Name is the name of the rule
+	Name string
+
+	// Validate is the validation function
+	Validate func(data interface{}) (bool, error)
+
+	// ErrorMessage is the message to show on validation failure
+	ErrorMessage string
+
+	// Severity determines if validation failure should block progress
+	Severity ValidationSeverity
+}
+
+// ValidationSeverity indicates the severity of a validation failure
+type ValidationSeverity string
+
+const (
+	// ValidationError indicates a blocking validation failure
+	ValidationError ValidationSeverity = "error"
+
+	// ValidationWarning indicates a non-blocking validation failure
+	ValidationWarning ValidationSeverity = "warning"
+)
+
+// RecoveryConfig configures failure recovery
+type RecoveryConfig struct {
+	// AutomaticRecovery indicates whether to attempt automatic recovery
+	AutomaticRecovery bool
+
+	// RecoveryFunc is called to attempt recovery from a panic
+	RecoveryFunc func(ctx interface{}, agent AgentType, state *WorkflowState, rec interface{}) error
+
+	// OnPanic is called when a panic occurs
+	OnPanic func(ctx interface{}, panicErr interface{}) error
+
+	// MaxRecoveryAttempts is the maximum number of recovery attempts
+	MaxRecoveryAttempts int
+}
+
+// WorkflowStateStore defines the interface for storing workflow state
+type WorkflowStateStore interface {
+	// SaveState saves the current workflow state
+	SaveState(workflowID string, state interface{}) error
+
+	// LoadState loads a workflow state
+	LoadState(workflowID string) (interface{}, error)
+
+	// ListCheckpoints lists available checkpoints for a workflow
+	ListCheckpoints(workflowID string) ([]string, error)
+
+	// DeleteCheckpoint deletes a checkpoint
+	DeleteCheckpoint(workflowID string, checkpointID string) error
 }
 
 // RunConfig configures global settings

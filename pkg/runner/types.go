@@ -1,21 +1,25 @@
 package runner
-
 import (
+	"time"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
-
 // Type aliases to help with import resolution
-// This helps avoid circular dependencies and import issues
-
-// AgentType represents a pointer to an Agent.
-// This alias helps avoid circular dependencies.
-type AgentType = *agent.Agent
-
-// ModelRequestType represents a request to be sent to a model.
-// This alias helps avoid circular dependencies.
-type ModelRequestType = model.Request
-
-// ModelSettingsType represents configuration settings for a model.
-// This alias helps avoid circular dependencies.
-type ModelSettingsType = model.Settings
+type (
+	AgentType = *agent.Agent
+	ModelRequestType = model.Request
+	ModelSettingsType = model.Settings
+)
+// WorkflowState represents the current state of a workflow
+type WorkflowState struct {
+	// CurrentPhase is the current phase of the workflow
+	CurrentPhase string
+	// CompletedPhases are the phases that have been completed
+	CompletedPhases []string
+	// Artifacts are data produced during workflow execution
+	Artifacts map[string]interface{}
+	// LastCheckpoint is when the state was last saved
+	LastCheckpoint time.Time
+	// Metadata is additional workflow metadata
+	Metadata map[string]interface{}
+} 

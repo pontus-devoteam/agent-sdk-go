@@ -27,7 +27,6 @@
 </p>
 
 <p align="center">
-  <a href="https://go-agent.org/docs">📚 Documentation</a> •
   <a href="https://go-agent.org/#waitlist">☁️ Cloud Waitlist</a> •
   <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE">📜 License</a>
 </p>
@@ -56,6 +55,7 @@
   - [Structured Output](#structured-output)
   - [Streaming](#streaming)
   - [OpenAI Tool Definitions](#openai-tool-definitions)
+  - [Workflow State Management](#workflow-state-management)
 - [Examples](#-examples)
 - [Cloud Support](#-cloud-support)
 - [Development](#-development)
@@ -80,6 +80,7 @@ Agent SDK Go provides a comprehensive framework for building AI agents in Go. It
 - ✅ **Streaming** - Get real-time streaming responses
 - ✅ **Tracing & Monitoring** - Debug your agent flows
 - ✅ **OpenAI Compatibility** - Compatible with OpenAI tool definitions and API
+- ✅ **Workflow State Management** - Persist and manage state between agent executions
 
 ## 📦 Installation
 
@@ -479,6 +480,66 @@ toolDefinitions := []map[string]interface{}{
 agent.AddToolsFromDefinitions(toolDefinitions)
 ```
 
+</details>
+
+### Workflow State Management
+
+<details>
+<summary>Manage state between agent executions</summary>
+
+```go
+// Create a state store
+stateStore := mocks.NewInMemoryStateStore()
+
+// Create workflow configuration
+workflowConfig := &runner.WorkflowConfig{
+    RetryConfig: &runner.RetryConfig{
+        MaxRetries:         2,
+        RetryDelay:        time.Second,
+        RetryBackoffFactor: 2.0,
+    },
+    StateManagement: &runner.StateManagementConfig{
+        PersistState:        true,
+        StateStore:          stateStore,
+        CheckpointFrequency: time.Second * 5,
+    },
+    ValidationConfig: &runner.ValidationConfig{
+        PreHandoffValidation: []runner.ValidationRule{
+            {
+                Name:         "StateValidation",
+                Validate:     func(data interface{}) (bool, error) {
+                    state, ok := data.(*runner.WorkflowState)
+                    return ok && state != nil, nil
+                },
+                ErrorMessage: "Invalid workflow state",
+                Severity:     runner.ValidationWarning,
+            },
+        },
+    },
+}
+
+// Create workflow runner
+workflowRunner := runner.NewWorkflowRunner(baseRunner, workflowConfig)
+
+// Initialize workflow state
+state := &runner.WorkflowState{
+    CurrentPhase:    "",
+    CompletedPhases: make([]string, 0),
+    Artifacts:       make(map[string]interface{}),
+    LastCheckpoint:  time.Now(),
+    Metadata:        make(map[string]interface{}),
+}
+
+// Run workflow with state management
+result, err := workflowRunner.RunWorkflow(context.Background(), agent, &runner.RunOptions{
+    MaxTurns:       10,
+    RunConfig:      runConfig,
+    WorkflowConfig: workflowConfig,
+    Input:         state,
+})
+```
+
+See the complete example in [examples/workflow_example](./examples/workflow_example).
 </details>
 
 ## 📚 Examples

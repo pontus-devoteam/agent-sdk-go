@@ -27,6 +27,12 @@ type RunHooks interface {
 
 	// OnRunEnd is called when the run ends
 	OnRunEnd(ctx context.Context, result *result.RunResult) error
+
+	// OnBeforeHandoff is called before a handoff occurs
+	OnBeforeHandoff(ctx context.Context, agent AgentType, handoffAgent AgentType) error
+
+	// OnAfterHandoff is called after a handoff completes
+	OnAfterHandoff(ctx context.Context, agent AgentType, handoffAgent AgentType, result interface{}) error
 }
 
 // DefaultRunHooks provides a default implementation of RunHooks
@@ -49,5 +55,15 @@ func (h *DefaultRunHooks) OnTurnEnd(ctx context.Context, agent *agent.Agent, tur
 
 // OnRunEnd is called when the run ends
 func (h *DefaultRunHooks) OnRunEnd(ctx context.Context, result *result.RunResult) error {
+	return nil
+}
+
+// OnBeforeHandoff is called before a handoff occurs
+func (h *DefaultRunHooks) OnBeforeHandoff(ctx context.Context, agent AgentType, handoffAgent AgentType) error {
+	return nil
+}
+
+// OnAfterHandoff is called after a handoff completes
+func (h *DefaultRunHooks) OnAfterHandoff(ctx context.Context, agent AgentType, handoffAgent AgentType, result interface{}) error {
 	return nil
 }

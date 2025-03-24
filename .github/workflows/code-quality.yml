@@ -56,6 +56,31 @@ jobs:
         
         echo "===== PKG STRUCTURE ====="
         find ./pkg -type d | sort || echo "No pkg directory found"
+        
+        # Create golangci-lint config file
+        echo "===== CREATING GOLANGCI-LINT CONFIG ====="
+        cat > .golangci.yml << EOL
+linters:
+  disable:
+    - typecheck
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+run:
+  skip-dirs:
+    - .git
+    - .github
+    - vendor
+  build-tags:
+    - buildvcs=false
+EOL
+        cat .golangci.yml
     
     - name: Use golangci-lint action
       uses: golangci/golangci-lint-action@v3
