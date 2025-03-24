@@ -64,7 +64,7 @@ release:
   footer: |
     ## Release Assets
 
-    {{ range $asset := .Artifacts }}
+    {{ range $asset := .ReleaseAssets }}
     - `{{ $asset.Name }}` ({{ $asset.Size }})
     {{- end }}
 
