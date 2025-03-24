@@ -89,24 +89,24 @@ func TestWorkflowWithMultipleAgents(t *testing.T) {
 
 	// Create specialized agents
 	designAgent := &agent.Agent{
-		Name: "design",
+		Name:         "design",
 		Instructions: "Design phase instructions",
-		Model: "test-model",
-		Tools: []tool.Tool{updateStateTool},
+		Model:        "test-model",
+		Tools:        []tool.Tool{updateStateTool},
 	}
 
 	codeAgent := &agent.Agent{
-		Name: "code",
+		Name:         "code",
 		Instructions: "Code phase instructions",
-		Model: "test-model",
-		Tools: []tool.Tool{updateStateTool},
+		Model:        "test-model",
+		Tools:        []tool.Tool{updateStateTool},
 	}
 
 	testAgent := &agent.Agent{
-		Name: "test",
+		Name:         "test",
 		Instructions: "Test phase instructions",
-		Model: "test-model",
-		Tools: []tool.Tool{updateStateTool},
+		Model:        "test-model",
+		Tools:        []tool.Tool{updateStateTool},
 	}
 
 	// Initialize workflow state
@@ -122,7 +122,7 @@ func TestWorkflowWithMultipleAgents(t *testing.T) {
 	workflowConfig := &runner.WorkflowConfig{
 		RetryConfig: &runner.RetryConfig{
 			MaxRetries:         2,
-			RetryDelay:        time.Second,
+			RetryDelay:         time.Second,
 			RetryBackoffFactor: 2.0,
 		},
 		StateManagement: &runner.StateManagementConfig{
@@ -171,7 +171,7 @@ func TestWorkflowWithMultipleAgents(t *testing.T) {
 				ModelProvider: mockProvider,
 			},
 			WorkflowConfig: workflowConfig,
-			Input:         currentState,
+			Input:          currentState,
 		})
 
 		// Assert no error
@@ -221,4 +221,4 @@ func contains(slice []string, str string) bool {
 		}
 	}
 	return false
-} 
+}

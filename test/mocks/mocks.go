@@ -100,4 +100,4 @@ func (s *InMemoryStateStore) ListCheckpoints(workflowID string) ([]string, error
 func (s *InMemoryStateStore) DeleteCheckpoint(workflowID string, checkpointID string) error {
 	delete(s.states, workflowID)
 	return nil
-} 
+}

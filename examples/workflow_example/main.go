@@ -15,8 +15,8 @@ import (
 // WorkflowContext maintains state between agent handoffs
 type WorkflowContext struct {
 	CurrentPhase    string                 // Current phase of development
-	CompletedPhases []string              // List of completed phases
-	Artifacts       map[string]string     // Store artifacts (design docs, code, tests, etc.)
+	CompletedPhases []string               // List of completed phases
+	Artifacts       map[string]string      // Store artifacts (design docs, code, tests, etc.)
 	Metadata        map[string]interface{} // Additional metadata
 }
 
@@ -262,7 +262,7 @@ Remember:
 	workflowConfig := &runner.WorkflowConfig{
 		RetryConfig: &runner.RetryConfig{
 			MaxRetries:         3,
-			RetryDelay:        time.Second,
+			RetryDelay:         time.Second,
 			RetryBackoffFactor: 2.0,
 			RetryableErrors:    []string{"handoff failed", "tool call failed"},
 			OnRetry: func(attempt int, err error) error {
@@ -319,7 +319,7 @@ Remember:
 		MaxTurns:       20,
 		RunConfig:      &runner.RunConfig{},
 		WorkflowConfig: workflowConfig,
-		Input:         "Create a simple REST API endpoint for user registration with email and password",
+		Input:          "Create a simple REST API endpoint for user registration with email and password",
 	})
 
 	if err != nil {
@@ -328,4 +328,4 @@ Remember:
 
 	fmt.Println("\nWorkflow completed successfully!")
 	fmt.Println("Final output:", result.FinalOutput)
-} 
+}

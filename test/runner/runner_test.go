@@ -1,11 +1,11 @@
 package runner_test
 
 import (
-	"testing"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
 	"github.com/pontus-devoteam/agent-sdk-go/test/mocks"
 	"github.com/stretchr/testify/mock"
+	"testing"
 )
 
 // TestNewRunner tests the creation of a new runner
@@ -166,4 +166,4 @@ func TestTracingConfig(t *testing.T) {
 	if cfg.Metadata["key"] != "value" {
 		t.Errorf("TracingConfig.Metadata[key] = %s, want value", cfg.Metadata["key"])
 	}
-} 
+}

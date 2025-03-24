@@ -27,7 +27,7 @@ func NewWorkflowRunner(baseRunner *Runner, config *WorkflowConfig) *WorkflowRunn
 type workflowHooks struct {
 	baseHooks      RunHooks
 	workflowConfig *WorkflowConfig
-	state         *WorkflowState
+	state          *WorkflowState
 }
 
 func (wh *workflowHooks) OnRunStart(ctx context.Context, agent *agent.Agent, input interface{}) error {
@@ -90,7 +90,7 @@ func (wr *WorkflowRunner) RunWorkflow(ctx context.Context, agent AgentType, opts
 	hooks := &workflowHooks{
 		baseHooks:      opts.Hooks,
 		workflowConfig: opts.WorkflowConfig,
-		state:         state,
+		state:          state,
 	}
 	opts.Hooks = hooks
 
@@ -172,4 +172,4 @@ func (r *WorkflowRunner) attemptRecovery(ctx context.Context, agent *agent.Agent
 	}
 
 	return fmt.Errorf("no recovery function configured")
-} 
+}
