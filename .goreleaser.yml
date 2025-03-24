@@ -31,20 +31,12 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    replacements_in:
-      - "README.md"
-      - "LICENSE"
-      - "examples/**/*.go"
-      - "pkg/**/*.go"
-      - "cmd/**/*.go"
-      - "go.mod"
-      - "go.sum"
     files:
       - LICENSE
       - README.md
-      - examples/**/*.go
-      - pkg/**/*.go
-      - cmd/**/*.go
+      - examples/**/*
+      - pkg/**/*
+      - cmd/**/*
       - go.mod
       - go.sum
 
@@ -55,6 +47,15 @@ checksum:
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
 
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
+      - '^chore:'
+
 release:
   github:
     owner: pontus-devoteam
@@ -63,19 +64,8 @@ release:
   prerelease: auto
   footer: |
     ## Docker images
-
     {{ range $asset := .FilteredAssets }}
     - `{{ $asset.Name }}` ({{ $asset.Size }})
     {{- end }}
 
-    Docker images can be found at [pontus-devoteam/agent-sdk-go](https://hub.docker.com/r/pontus-devoteam/agent-sdk-go).
-
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
-      - Merge pull request
-      - Merge branch 
+    Docker images can be found at [pontus-devoteam/agent-sdk-go](https://hub.docker.com/r/pontus-devoteam/agent-sdk-go). 
