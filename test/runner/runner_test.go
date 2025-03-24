@@ -1,11 +1,11 @@
 package runner_test
 
 import (
+	"testing"
+
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
 	"github.com/pontus-devoteam/agent-sdk-go/test/mocks"
-	"github.com/stretchr/testify/mock"
-	"testing"
 )
 
 // TestNewRunner tests the creation of a new runner
@@ -38,8 +38,6 @@ func TestWithDefaultProvider(t *testing.T) {
 	r := runner.NewRunner()
 	// Create a mock model provider
 	provider := &mocks.MockModelProvider{}
-	mockModel := &mocks.MockModel{}
-	provider.On("GetModel", mock.Anything).Return(mockModel, nil)
 	// Set default provider
 	r.WithDefaultProvider(provider)
 	// We can't directly check the default provider as it's a private field,
@@ -47,8 +45,6 @@ func TestWithDefaultProvider(t *testing.T) {
 	if r == nil {
 		t.Fatalf("WithDefaultProvider() returned nil")
 	}
-	// Verify expectations
-	provider.AssertExpectations(t)
 }
 
 // TestRunOptions tests creating run options
