@@ -3,32 +3,72 @@ version: 2
 before:
   hooks:
     - go mod tidy
+
 builds:
   - env:
       - CGO_ENABLED=0
     goos:
       - linux
-      - windows
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
+    mod_timestamp: "{{ .CommitDate }}"
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
+    main: ./cmd/agent-sdk-go
 
 archives:
-  - replacements:
-      darwin: macOS
-      linux: Linux
-      windows: Windows
-      amd64: x86_64
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
         format: zip
+    replacements_in:
+      - "README.md"
+      - "LICENSE"
+      - "examples/**/*.go"
+      - "pkg/**/*.go"
+      - "cmd/**/*.go"
+      - "go.mod"
+      - "go.sum"
+    files:
+      - LICENSE
+      - README.md
+      - examples/**/*.go
+      - pkg/**/*.go
+      - cmd/**/*.go
+      - go.mod
+      - go.sum
 
 checksum:
   name_template: 'checksums.txt'
+  algorithm: sha256
 
 snapshot:
   name_template: "{{ incpatch .Version }}-next"
+
+release:
+  github:
+    owner: pontus-devoteam
+    name: agent-sdk-go
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Docker images
+
+    {{ range $asset := .FilteredAssets }}
+    - `{{ $asset.Name }}` ({{ $asset.Size }})
+    {{- end }}
+
+    Docker images can be found at [pontus-devoteam/agent-sdk-go](https://hub.docker.com/r/pontus-devoteam/agent-sdk-go).
 
 changelog:
   sort: asc
