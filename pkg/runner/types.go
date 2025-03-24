@@ -1,9 +1,10 @@
 package runner
 
 import (
+	"time"
+
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
-	"time"
 )
 
 // Type aliases to help with import resolution
