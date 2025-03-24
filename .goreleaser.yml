@@ -62,10 +62,10 @@ release:
   draft: false
   prerelease: auto
   footer: |
-    ## Release Assets
+    ## Release Information
 
-    {{ range $asset := .ReleaseAssets }}
-    - `{{ $asset.Name }}` ({{ $asset.Size }})
-    {{- end }}
+    Version: {{ .Version }}
+    Commit: {{ .Commit }}
+    Date: {{ .Date }}
 
     For more information, visit [pontus-devoteam/agent-sdk-go](https://github.com/pontus-devoteam/agent-sdk-go) 
