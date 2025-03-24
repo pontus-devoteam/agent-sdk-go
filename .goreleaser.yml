@@ -17,7 +17,7 @@ builds:
     mod_timestamp: "{{ .CommitDate }}"
     ldflags:
       - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}} -X main.date={{.Date}}
-    main: ./cmd/agent-sdk-go
+    main: .
 
 archives:
   - format: tar.gz
