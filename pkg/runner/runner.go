@@ -2,6 +2,8 @@ package runner
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -643,35 +645,67 @@ func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *
 		inputList = []interface{}{}
 	}
 
-	// Add the response as an assistant message
-	if response.Content != "" {
+	// Ensure the content field is never null
+	content := response.Content
+	if content == "" {
+		content = " " // Use a space character if content is empty
+	}
+
+	// If we have tool calls, we need to do special handling for OpenAI
+	if len(response.ToolCalls) > 0 {
+		// Create properly formatted tool calls for OpenAI
+		toolCalls := make([]map[string]interface{}, len(response.ToolCalls))
+		for i, tc := range response.ToolCalls {
+			// Ensure we have a valid ID
+			toolCallID := tc.ID
+			if toolCallID == "" {
+				randomBytes := make([]byte, 8)
+				if _, err := rand.Read(randomBytes); err == nil {
+					toolCallID = fmt.Sprintf("call_%x", randomBytes)
+				} else {
+					toolCallID = fmt.Sprintf("call_%d", i)
+				}
+			}
+
+			toolCalls[i] = map[string]interface{}{
+				"id":   toolCallID,
+				"type": "function",
+				"function": map[string]interface{}{
+					"name": tc.Name,
+					"arguments": func() string {
+						args, err := json.Marshal(tc.Parameters)
+						if err != nil {
+							return "{}"
+						}
+						return string(args)
+					}(),
+				},
+			}
+		}
+
+		// Add the assistant message with tool_calls
+		assistantMessage := map[string]interface{}{
+			"type":       "message",
+			"role":       "assistant",
+			"content":    content,
+			"tool_calls": toolCalls,
+		}
+		inputList = append(inputList, assistantMessage)
+
+		// Now add each tool result after the assistant message
+		for _, result := range toolResults {
+			if toolResult, ok := result.(map[string]interface{}); ok {
+				inputList = append(inputList, toolResult)
+			}
+		}
+	} else if response.Content != "" {
+		// Regular text response without tool calls
 		inputList = append(inputList, map[string]interface{}{
 			"type":    "message",
 			"role":    "assistant",
 			"content": response.Content,
 		})
-	} else {
-		// Add a message representing the tool calls
-		var toolCallsDescription string
-		if len(response.ToolCalls) == 1 {
-			toolCallsDescription = fmt.Sprintf("You called the tool: %s", response.ToolCalls[0].Name)
-		} else {
-			toolNames := make([]string, len(response.ToolCalls))
-			for i, tc := range response.ToolCalls {
-				toolNames[i] = tc.Name
-			}
-			toolCallsDescription = fmt.Sprintf("You called these tools: %s", strings.Join(toolNames, ", "))
-		}
-
-		inputList = append(inputList, map[string]interface{}{
-			"type":    "message",
-			"role":    "assistant",
-			"content": toolCallsDescription,
-		})
 	}
-
-	// Add the tool results
-	inputList = append(inputList, toolResults...)
 
 	// If we've had several consecutive calls to the same tool, add a prompt
 	if consecutiveToolCalls >= 3 {
@@ -699,7 +733,7 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 	// If we didn't find the tool, return an error result
 	if toolToCall == nil {
 		err := fmt.Errorf("tool not found: %s", tc.Name)
-		return fmt.Sprintf("Error: %v", err),
+		return createToolResultForError(tc, err, turn, idx),
 			&result.ToolCallItem{
 				Name:       tc.Name,
 				Parameters: tc.Parameters,
@@ -717,7 +751,7 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 	// Call agent hooks if provided
 	if agent.Hooks != nil {
 		if err := agent.Hooks.OnBeforeToolCall(ctx, agent, toolToCall, tc.Parameters); err != nil {
-			return fmt.Sprintf("Error: %v", err),
+			return createToolResultForError(tc, err, turn, idx),
 				&result.ToolCallItem{
 					Name:       tc.Name,
 					Parameters: tc.Parameters,
@@ -739,7 +773,7 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 	// Call agent hooks if provided
 	if agent.Hooks != nil {
 		if hookErr := agent.Hooks.OnAfterToolCall(ctx, agent, toolToCall, toolResult, err); hookErr != nil {
-			return fmt.Sprintf("Error: %v", hookErr),
+			return createToolResultForError(tc, hookErr, turn, idx),
 				&result.ToolCallItem{
 					Name:       tc.Name,
 					Parameters: tc.Parameters,
@@ -769,12 +803,25 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 		Result: toolResult,
 	}
 
+	// Use the actual ID from the tool call if available, otherwise generate one
+	// For OpenAI, the tool call ID format is important and should be consistent
+	toolCallID := tc.ID
+	if toolCallID == "" {
+		// Generate a tool call ID in the same format as OpenAI's: "call_<random_string>"
+		randomBytes := make([]byte, 8)
+		if _, err := rand.Read(randomBytes); err != nil {
+			toolCallID = fmt.Sprintf("call_%d_%d", turn, idx)
+		} else {
+			toolCallID = fmt.Sprintf("call_%x", randomBytes)
+		}
+	}
+
 	// Create the tool result for the model
 	modelToolResult := map[string]interface{}{
 		"type": "tool_result",
 		"tool_call": map[string]interface{}{
 			"name":       tc.Name,
-			"id":         fmt.Sprintf("call_%d_%d", turn, idx),
+			"id":         toolCallID,
 			"parameters": tc.Parameters,
 		},
 		"tool_result": map[string]interface{}{
@@ -783,6 +830,32 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 	}
 
 	return modelToolResult, toolCallItem, toolResultItem, nil
+}
+
+// createToolResultForError creates a structured tool result for an error
+func createToolResultForError(tc model.ToolCall, err error, turn int, idx int) interface{} {
+	// Generate a tool call ID
+	toolCallID := tc.ID
+	if toolCallID == "" {
+		randomBytes := make([]byte, 8)
+		if _, err := rand.Read(randomBytes); err != nil {
+			toolCallID = fmt.Sprintf("call_%d_%d", turn, idx)
+		} else {
+			toolCallID = fmt.Sprintf("call_%x", randomBytes)
+		}
+	}
+
+	return map[string]interface{}{
+		"type": "tool_result",
+		"tool_call": map[string]interface{}{
+			"name":       tc.Name,
+			"id":         toolCallID,
+			"parameters": tc.Parameters,
+		},
+		"tool_result": map[string]interface{}{
+			"content": fmt.Sprintf("Error: %v", err),
+		},
+	}
 }
 
 // resolveModel resolves the model for the agent

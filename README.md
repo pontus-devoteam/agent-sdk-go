@@ -548,19 +548,45 @@ The repository includes several examples to help you get started:
 
 | Example | Description |
 |---------|-------------|
-| [Multi-Agent Example](./examples/multi_agent_example) | Demonstrates how to create a system of specialized agents that can collaborate on complex tasks |
+| [Multi-Agent Example](./examples/multi_agent_example) | Demonstrates how to create a system of specialized agents that can collaborate on complex tasks using a local LLM via LM Studio |
+| [OpenAI Example](./examples/openai_example) | Shows how to use the OpenAI provider with function calling capabilities |
+| [OpenAI Multi-Agent Example](./examples/openai_multi_agent_example) | Illustrates multi-agent functionality using OpenAI models, with proper tool calling and streaming support |
+| [Workflow Example](./examples/workflow_example) | Demonstrates advanced workflow management with state persistence between agent executions |
 
-To run the multi-agent example:
+### Running Examples with a Local LLM
 
 1. Make sure LM Studio is running with a server at `http://127.0.0.1:1234/v1`
 2. Navigate to the example directory
    ```bash
-   cd examples/multi_agent_example
+   cd examples/multi_agent_example # or any other example using LM Studio
    ```
 3. Run the example
    ```bash
    go run .
    ```
+
+### Running Examples with OpenAI
+
+1. Set your OpenAI API key as an environment variable
+   ```bash
+   export OPENAI_API_KEY=your-api-key
+   ```
+2. Navigate to the example directory
+   ```bash
+   cd examples/openai_example # or openai_multi_agent_example
+   ```
+3. Run the example
+   ```bash
+   go run .
+   ```
+
+### Debugging
+
+You can enable debug output for OpenAI API calls by setting the `OPENAI_DEBUG` environment variable:
+
+```bash
+OPENAI_DEBUG=1 go run examples/openai_multi_agent_example/main.go
+```
 
 ## 🛠️ Development
 

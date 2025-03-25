@@ -28,10 +28,11 @@ type Model struct {
 
 // ChatMessage represents a message in a chat
 type ChatMessage struct {
-	Role      string                `json:"role"`
-	Content   string                `json:"content,omitempty"`
-	Name      string                `json:"name,omitempty"`
-	ToolCalls []ChatMessageToolCall `json:"tool_calls,omitempty"`
+	Role       string                `json:"role"`
+	Content    string                `json:"content"`
+	Name       string                `json:"name,omitempty"`
+	ToolCalls  []ChatMessageToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string                `json:"tool_call_id,omitempty"`
 }
 
 // ChatMessageToolCall represents a tool call in a chat message
@@ -159,6 +160,10 @@ func (m *Model) getResponseOnce(ctx context.Context, request *model.Request) (*m
 	if err != nil {
 		return nil, fmt.Errorf("failed to construct request: %w", err)
 	}
+
+	// Debug output
+	requestJSON, _ := json.MarshalIndent(chatRequest, "", "  ")
+	fmt.Printf("DEBUG - OpenAI Request: %s\n", requestJSON)
 
 	// Marshal the request to JSON
 	requestBody, err := json.Marshal(chatRequest)
@@ -582,6 +587,55 @@ func createChatMessageFromMap(message map[string]interface{}) ChatMessage {
 		chatMessage.Name = name
 	}
 
+	// Add tool_calls if provided (critical for OpenAI's message ordering requirements)
+	if toolCalls, ok := message["tool_calls"].([]map[string]interface{}); ok && len(toolCalls) > 0 {
+		chatMessage.ToolCalls = make([]ChatMessageToolCall, 0, len(toolCalls))
+		for _, tc := range toolCalls {
+			// Extract function details
+			function, ok := tc["function"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Create a tool call
+			toolCall := ChatMessageToolCall{
+				ID:   tc["id"].(string),
+				Type: tc["type"].(string),
+				Function: ChatMessageToolCallFunction{
+					Name:      function["name"].(string),
+					Arguments: function["arguments"].(string),
+				},
+			}
+			chatMessage.ToolCalls = append(chatMessage.ToolCalls, toolCall)
+		}
+	} else if toolCallsRaw, ok := message["tool_calls"].([]interface{}); ok && len(toolCallsRaw) > 0 {
+		// Handle case where tool_calls is a []interface{}
+		chatMessage.ToolCalls = make([]ChatMessageToolCall, 0, len(toolCallsRaw))
+		for _, tcRaw := range toolCallsRaw {
+			tc, ok := tcRaw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Extract function details
+			function, ok := tc["function"].(map[string]interface{})
+			if !ok {
+				continue
+			}
+
+			// Create a tool call
+			toolCall := ChatMessageToolCall{
+				ID:   tc["id"].(string),
+				Type: tc["type"].(string),
+				Function: ChatMessageToolCallFunction{
+					Name:      function["name"].(string),
+					Arguments: function["arguments"].(string),
+				},
+			}
+			chatMessage.ToolCalls = append(chatMessage.ToolCalls, toolCall)
+		}
+	}
+
 	return chatMessage
 }
 
@@ -600,15 +654,46 @@ func createToolResultMessage(message map[string]interface{}) *ChatMessage {
 		return nil
 	}
 
-	// Create a tool result message
-	content := fmt.Sprintf("Tool '%s' returned: %v",
-		toolCall["name"].(string),
-		toolResult["content"])
+	// Get the tool call ID - this is critical for proper tool response handling
+	toolCallID, ok := toolCall["id"].(string)
+	if !ok || toolCallID == "" {
+		// OpenAI requires tool_call_id for tool responses
+		// Generate a random ID if not provided
+		randomBytes := make([]byte, 16)
+		_, err := rand.Read(randomBytes)
+		if err != nil {
+			return nil
+		}
+		toolCallID = fmt.Sprintf("call_%x", randomBytes)
+	}
 
+	// Extract content from the tool result
+	resultContent, ok := toolResult["content"]
+	if !ok {
+		resultContent = ""
+	}
+
+	// Convert result content to string if needed
+	var contentStr string
+	switch v := resultContent.(type) {
+	case string:
+		contentStr = v
+	default:
+		// For non-string content, try to convert to JSON
+		// If that fails, use fmt.Sprintf
+		if jsonBytes, err := json.Marshal(resultContent); err == nil {
+			contentStr = string(jsonBytes)
+		} else {
+			contentStr = fmt.Sprintf("%v", resultContent)
+		}
+	}
+
+	// Create a proper tool response message according to OpenAI's spec
+	// For OpenAI, a tool result message must have role="tool", tool_call_id matching the assistant's tool call ID
 	return &ChatMessage{
-		Role:    "tool",
-		Content: content,
-		Name:    toolCall["name"].(string),
+		Role:       "tool",
+		Content:    contentStr,
+		ToolCallID: toolCallID,
 	}
 }
 
