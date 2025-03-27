@@ -13,15 +13,16 @@ import (
 
 // Event types for tracing
 const (
-	EventTypeAgentStart    = "agent_start"
-	EventTypeAgentEnd      = "agent_end"
-	EventTypeToolCall      = "tool_call"
-	EventTypeToolResult    = "tool_result"
-	EventTypeModelRequest  = "model_request"
-	EventTypeModelResponse = "model_response"
-	EventTypeHandoff       = "handoff"
-	EventTypeAgentMessage  = "agent_message"
-	EventTypeError         = "error"
+	EventTypeAgentStart      = "agent_start"
+	EventTypeAgentEnd        = "agent_end"
+	EventTypeToolCall        = "tool_call"
+	EventTypeToolResult      = "tool_result"
+	EventTypeModelRequest    = "model_request"
+	EventTypeModelResponse   = "model_response"
+	EventTypeHandoff         = "handoff"
+	EventTypeHandoffComplete = "handoff_complete"
+	EventTypeAgentMessage    = "agent_message"
+	EventTypeError           = "error"
 )
 
 // Event is a trace event

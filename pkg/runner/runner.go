@@ -374,7 +374,7 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 
 		// Check if we have a handoff
 		if response.HandoffCall != nil {
-			nextAgent, nextInput, err := r.processHandoff(ctx, currentAgent, response.HandoffCall, runResult, opts)
+			nextAgent, nextInput, err := r.processHandoff(ctx, currentAgent, currentInput, response.HandoffCall, runResult, opts)
 			if err != nil {
 				return nil, err
 			}
@@ -541,7 +541,7 @@ func (r *Runner) executeModelRequest(ctx context.Context, agent AgentType, input
 }
 
 // processHandoff handles a handoff to another agent
-func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, handoffCall *model.HandoffCall, runResult *result.RunResult, opts *RunOptions) (AgentType, interface{}, error) {
+func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, currentInput interface{}, handoffCall *model.HandoffCall, runResult *result.RunResult, opts *RunOptions) (AgentType, interface{}, error) {
 	// Find the handoff agent
 	var handoffAgent AgentType
 	for _, h := range currentAgent.Handoffs {
@@ -551,38 +551,67 @@ func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, han
 		}
 	}
 
-	// If we found the handoff agent, update the current agent and input
-	if handoffAgent != nil {
-		// Record handoff event
-		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
-
-		// Call agent hooks if provided
-		if currentAgent.Hooks != nil {
-			if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
-				return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
-			}
-		}
-
-		// Add the handoff to the result
-		handoffItem := &result.HandoffItem{
-			AgentName: handoffAgent.Name,
-			Input:     handoffCall.Input,
-		}
-		runResult.NewItems = append(runResult.NewItems, handoffItem)
-
-		// Call agent hooks if provided
-		if currentAgent.Hooks != nil {
-			if err := currentAgent.Hooks.OnAfterHandoff(ctx, currentAgent, handoffAgent, handoffCall.Input); err != nil {
-				return nil, nil, fmt.Errorf("after handoff hook error: %w", err)
-			}
-		}
-
-		return handoffAgent, handoffCall.Input, nil
+	// If we didn't find the handoff agent, log it but continue with current agent
+	if handoffAgent == nil {
+		log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
+		return nil, nil, nil
 	}
 
-	// If we didn't find the handoff agent, log it but continue with current agent
-	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
-	return nil, nil, nil
+	// Record handoff event
+	tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+
+	// Call agent hooks if provided
+	if currentAgent.Hooks != nil {
+		if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
+			return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
+		}
+	}
+
+	// Add the handoff to the result
+	handoffItem := &result.HandoffItem{
+		AgentName: handoffAgent.Name,
+		Input:     handoffCall.Input,
+	}
+	runResult.NewItems = append(runResult.NewItems, handoffItem)
+
+	// Create a new context with additional metadata for the sub-agent
+	subAgentCtx := context.WithValue(ctx, "parent_agent", currentAgent.Name)
+
+	// Create sub-agent options based on current options
+	subAgentOpts := &RunOptions{
+		Input:     handoffCall.Input,
+		MaxTurns:  opts.MaxTurns,
+		RunConfig: opts.RunConfig,
+		Hooks:     opts.Hooks, // Preserve hooks for consistent behavior
+	}
+
+	// Run the sub-agent to completion and collect its result
+	subAgentResult, err := r.Run(subAgentCtx, handoffAgent, subAgentOpts)
+	if err != nil {
+		return nil, nil, fmt.Errorf("sub-agent execution error: %w", err)
+	}
+
+	// Add sub-agent's result items to the parent result
+	runResult.NewItems = append(runResult.NewItems, subAgentResult.NewItems...)
+
+	// Record sub-agent completion event
+	tracing.HandoffComplete(ctx, currentAgent.Name, handoffAgent.Name, subAgentResult.FinalOutput)
+
+	// Call agent hooks if provided
+	if currentAgent.Hooks != nil {
+		if err := currentAgent.Hooks.OnAfterHandoff(ctx, currentAgent, handoffAgent, subAgentResult.FinalOutput); err != nil {
+			return nil, nil, fmt.Errorf("after handoff hook error: %w", err)
+		}
+	}
+
+	// Create a special continuation message to ensure the workflow continues
+	// This is more effective than just returning the sub-agent's output
+	continuationMessage := fmt.Sprintf("Agent %s has completed its task and returned the following result: %s\n\nPlease continue with the next step in your workflow based on this information.",
+		handoffAgent.Name,
+		subAgentResult.FinalOutput)
+
+	// Return control to the original agent with clear instructions to continue
+	return currentAgent, continuationMessage, nil
 }
 
 // processToolCalls processes tool calls and updates the input
@@ -1226,73 +1255,6 @@ func (r *Runner) processModelStream(
 	return nil
 }
 
-// handleHandoff processes a handoff to another agent
-func (r *Runner) handleHandoff(
-	ctx context.Context,
-	currentAgent AgentType,
-	handoffCall *model.HandoffCall,
-	response *model.Response,
-	opts *RunOptions,
-	streamedResult *result.StreamedRunResult,
-	turn int,
-	eventCh chan model.StreamEvent,
-) (AgentType, interface{}, error) {
-	// Find the handoff agent
-	var handoffAgent AgentType
-	for _, h := range currentAgent.Handoffs {
-		if h.Name == handoffCall.AgentName {
-			handoffAgent = h
-			break
-		}
-	}
-
-	// If we found the handoff agent, update the current agent and input
-	if handoffAgent != nil {
-		// Record handoff event
-		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
-
-		// Add a handoff item to the run result
-		handoffItem := &result.HandoffItem{
-			AgentName: handoffAgent.Name,
-			Input:     handoffCall.Input,
-		}
-		streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
-
-		// Call agent hooks if provided
-		if handoffAgent.Hooks != nil {
-			if err := handoffAgent.Hooks.OnAgentStart(ctx, handoffAgent, handoffCall.Input); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("agent start hook error: %w", err),
-				}
-				return nil, nil, err
-			}
-		}
-
-		// Call hooks if provided
-		if opts.Hooks != nil {
-			turnResult := &SingleTurnResult{
-				Agent:    currentAgent,
-				Response: response,
-				Output:   nil, // No output for handoff
-			}
-			if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("turn end hook error: %w", err),
-				}
-				return nil, nil, err
-			}
-		}
-
-		return handoffAgent, handoffCall.Input, nil
-	}
-
-	// If we didn't find the handoff agent, log an error
-	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
-	return currentAgent, nil, nil
-}
-
 // handleFinalOutput processes final output (structured or text)
 func (r *Runner) handleFinalOutput(
 	ctx context.Context,
@@ -1414,4 +1376,96 @@ func (r *Runner) handleTextResponse(
 	}
 
 	return nil
+}
+
+// handleHandoff processes a handoff to another agent in streaming mode
+func (r *Runner) handleHandoff(
+	ctx context.Context,
+	currentAgent AgentType,
+	handoffCall *model.HandoffCall,
+	response *model.Response,
+	opts *RunOptions,
+	streamedResult *result.StreamedRunResult,
+	turn int,
+	eventCh chan model.StreamEvent,
+) (AgentType, interface{}, error) {
+	// Find the handoff agent
+	var handoffAgent AgentType
+	for _, h := range currentAgent.Handoffs {
+		if h.Name == handoffCall.AgentName {
+			handoffAgent = h
+			break
+		}
+	}
+
+	// If we found the handoff agent, update the current agent and input
+	if handoffAgent != nil {
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+
+		// Add a handoff item to the run result
+		handoffItem := &result.HandoffItem{
+			AgentName: handoffAgent.Name,
+			Input:     handoffCall.Input,
+		}
+		streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
+
+		// Call agent hooks if provided
+		if handoffAgent.Hooks != nil {
+			if err := handoffAgent.Hooks.OnAgentStart(ctx, handoffAgent, handoffCall.Input); err != nil {
+				eventCh <- model.StreamEvent{
+					Type:  model.StreamEventTypeError,
+					Error: fmt.Errorf("agent start hook error: %w", err),
+				}
+				return nil, nil, err
+			}
+		}
+
+		// Call hooks if provided
+		if opts.Hooks != nil {
+			turnResult := &SingleTurnResult{
+				Agent:    currentAgent,
+				Response: response,
+				Output:   nil, // No output for handoff
+			}
+			if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
+				eventCh <- model.StreamEvent{
+					Type:  model.StreamEventTypeError,
+					Error: fmt.Errorf("turn end hook error: %w", err),
+				}
+				return nil, nil, err
+			}
+		}
+
+		// Create a continuation prompt to ensure the workflow continues after handoff returns
+		// This prompt is stored in the context but not sent directly to the model yet
+		continuationPrompt := fmt.Sprintf("Agent %s has been called. When it returns, please continue with the next step in your workflow based on its response.", handoffAgent.Name)
+
+		// Set the prompt in the context for use when the handoff returns
+		ctx = context.WithValue(ctx, "continuation_prompt", continuationPrompt)
+
+		// Update the streamed result with the handoff
+		eventCh <- model.StreamEvent{
+			Type:    model.StreamEventTypeHandoff,
+			Content: fmt.Sprintf("Handing off to %s...", handoffAgent.Name),
+			HandoffCall: &model.HandoffCall{
+				AgentName: handoffAgent.Name,
+				Input:     handoffCall.Input,
+			},
+		}
+
+		// Return the next agent and input
+		return handoffAgent, handoffCall.Input, nil
+	}
+
+	// If we didn't find the handoff agent, log it but continue with current agent
+	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
+	eventCh <- model.StreamEvent{
+		Type:    model.StreamEventTypeError,
+		Content: fmt.Sprintf("Error: Handoff to unknown agent: %s", handoffCall.AgentName),
+		Error:   fmt.Errorf("handoff to unknown agent: %s", handoffCall.AgentName),
+	}
+
+	// Continue with the current agent and input
+	return currentAgent, streamedResult.RunResult.Input, nil
 }
