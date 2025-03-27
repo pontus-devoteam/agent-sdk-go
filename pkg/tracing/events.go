@@ -111,6 +111,19 @@ func Handoff(ctx context.Context, fromAgent string, toAgent string, input interf
 	})
 }
 
+// HandoffComplete records when a handoff operation completes and control returns to the originating agent
+func HandoffComplete(ctx context.Context, fromAgent string, toAgent string, result interface{}) {
+	RecordEventContext(ctx, Event{
+		Type:      EventTypeHandoffComplete,
+		AgentName: fromAgent,
+		Timestamp: time.Now(),
+		Details: map[string]interface{}{
+			"to_agent": toAgent,
+			"result":   result,
+		},
+	})
+}
+
 // AgentMessage records an agent message event
 func AgentMessage(ctx context.Context, agentName string, role string, content interface{}) {
 	RecordEventContext(ctx, Event{
