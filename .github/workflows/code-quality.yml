@@ -50,8 +50,6 @@ jobs:
               - ineffassign
               - staticcheck
               - unused
-              - gofmt
-              - goimports
           EOF
 
       - name: Use golangci-lint action
