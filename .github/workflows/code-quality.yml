@@ -150,6 +150,19 @@ jobs:
       with:
         go-version: '1.23'
     
+    - name: Fix Go module setup
+      run: |
+        # Same module setup as in the lint job
+        if [ -f go.mod ]; then
+          mv go.mod go.mod.bak
+        fi
+        go mod init github.com/pontus-devoteam/agent-sdk-go
+        go mod tidy
+        
+        # Install required tools
+        echo "Installing required tools..."
+        go install golang.org/x/tools/cmd/goimports@latest
+    
     - name: Fix imports
       run: |
         goimports -w .
