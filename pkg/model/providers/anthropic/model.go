@@ -5,11 +5,11 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math"
-	mathrand "math/rand"
 	"net/http"
 	"os"
 	"strings"
@@ -876,7 +876,14 @@ func calculateBackoff(attempt int, baseDelay time.Duration) time.Duration {
 	// Add jitter (up to 20%)
 	jitter := 0.2 * backoff
 	if jitter > 0 {
-		backoff += mathrand.Float64() * jitter
+		// Use crypto/rand instead of math/rand for secure random number generation
+		jitterBytes := make([]byte, 8)
+		_, err := rand.Read(jitterBytes)
+		if err == nil {
+			// Convert the random bytes to a float64 between 0 and 1
+			jitterFloat := float64(binary.BigEndian.Uint64(jitterBytes)) / float64(uint64(1<<64-1))
+			backoff += jitterFloat * jitter
+		}
 	}
 
 	return time.Duration(backoff)
