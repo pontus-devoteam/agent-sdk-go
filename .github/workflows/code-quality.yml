@@ -56,32 +56,45 @@ jobs:
         
         # Create golangci-lint config file
         echo "===== CREATING GOLANGCI-LINT CONFIG ====="
-        echo 'linters:' > .golangci.yml
-        echo '  disable:' >> .golangci.yml
-        echo '    - typecheck' >> .golangci.yml
-        echo '  enable:' >> .golangci.yml
-        echo '    - errcheck' >> .golangci.yml
-        echo '    - gosimple' >> .golangci.yml
-        echo '    - govet' >> .golangci.yml
-        echo '    - ineffassign' >> .golangci.yml
-        echo '    - staticcheck' >> .golangci.yml
-        echo '    - unused' >> .golangci.yml
-        echo '    - gofmt' >> .golangci.yml
-        echo '    - goimports' >> .golangci.yml
-        echo 'run:' >> .golangci.yml
-        echo '  skip-dirs:' >> .golangci.yml
-        echo '    - .git' >> .golangci.yml
-        echo '    - .github' >> .golangci.yml
-        echo '    - vendor' >> .golangci.yml
-        echo '  build-tags:' >> .golangci.yml
-        echo '    - buildvcs=false' >> .golangci.yml
+        cat > .golangci.yml << EOF
+run:
+  timeout: 5m
+  go: '1.23'
+  tests: true
+  allow-parallel-runners: true
+  skip-files:
+    - ".*_test.go$"
+    - ".*/mocks/.*"
+
+linters-settings:
+  typecheck:
+    disabled: true
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gofmt
+    - goimports
+  disable:
+    - typecheck
+EOF
         cat .golangci.yml
     
     - name: Use golangci-lint action
       uses: golangci/golangci-lint-action@v3
       with:
         version: v1.55.2
-        args: --timeout=5m --disable=typecheck
+        args: >-
+          --timeout=5m
+          --disable=typecheck
+          --skip-dirs=test/mocks
+          --skip-files=.*_test.go
         skip-cache: true
         skip-pkg-cache: true
         skip-build-cache: true

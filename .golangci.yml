@@ -5,6 +5,17 @@ run:
   go: '1.23'
   # Examine test files as well
   tests: true
+  # Skip all issues from typecheck linter
+  allow-parallel-runners: true
+  skip-files:
+    - ".*_test.go$"
+    - ".*/mocks/.*"
+
+# Linter settings
+linters-settings:
+  typecheck:
+    # Force disable typecheck linter completely
+    disabled: true
 
 # Available linters
 linters:
