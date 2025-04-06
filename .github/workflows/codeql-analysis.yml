@@ -52,5 +52,5 @@ jobs:
 
     - name: Build
       run: |
-        go mod init github.com/pontus-devoteam/agent-sdk-go
+        # Module is already initialized in the "Fix module setup" step
         go build ./... 
