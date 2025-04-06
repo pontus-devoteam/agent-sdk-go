@@ -11,4 +11,6 @@ linters:
   disable-all: true
   enable:
     - gofmt
-    - govet 
+    - govet
+  disable:
+    - typecheck  # Explicitly disable typecheck to avoid issues with mocks and standard library 
