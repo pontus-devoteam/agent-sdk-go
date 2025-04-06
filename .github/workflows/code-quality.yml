@@ -41,21 +41,6 @@ jobs:
             tests: true
             allow-parallel-runners: true
           
-          output:
-            sort-results: true
-          
-          # This is needed to ignore type errors in test and mock files
-          run-rules:
-            skip-dirs:
-              - test/mocks
-          
-          # Configuration for specific linters
-          linters-settings:
-            govet:
-              check-shadowing: true
-            gofmt:
-              simplify: true
-          
           # Configured linters
           linters:
             enable:
