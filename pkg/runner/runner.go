@@ -621,12 +621,12 @@ func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, cur
 // processToolCalls processes tool calls and updates the input
 func (r *Runner) processToolCalls(ctx context.Context, agent AgentType, response *model.Response, currentInput interface{}, currentConsecutiveCalls int, runResult *result.RunResult, turn int, opts *RunOptions) (interface{}, bool, int) {
 	// Track consecutive tool calls to the same tool
-	consecutiveToolCalls := currentConsecutiveCalls
+	toolCallCount := currentConsecutiveCalls
 	if len(response.ToolCalls) == 1 {
-		consecutiveToolCalls++
+		toolCallCount++
 	} else {
 		// Multiple different tools called - reset counter
-		consecutiveToolCalls = 0
+		toolCallCount = 0
 	}
 
 	// Execute the tool calls
@@ -645,18 +645,18 @@ func (r *Runner) processToolCalls(ctx context.Context, agent AgentType, response
 		// If we had a critical error that wasn't handled in executeToolCall, return it
 		if err != nil && (toolCallItem == nil || toolResultItem == nil) {
 			// This shouldn't happen, but if it does, just stop processing
-			return currentInput, false, consecutiveToolCalls
+			return currentInput, false, toolCallCount
 		}
 	}
 
 	// Update the input with the tool results
 	if len(toolResults) > 0 {
-		nextInput := r.updateInputWithToolResults(currentInput, response, toolResults, consecutiveToolCalls)
-		return nextInput, true, consecutiveToolCalls
+		nextInput := r.updateInputWithToolResults(currentInput, response, toolResults, toolCallCount)
+		return nextInput, true, toolCallCount
 	}
 
 	// If we didn't have any tool results, don't continue the loop
-	return currentInput, false, consecutiveToolCalls
+	return currentInput, false, toolCallCount
 }
 
 // updateInputWithToolResults updates the input with the tool results
