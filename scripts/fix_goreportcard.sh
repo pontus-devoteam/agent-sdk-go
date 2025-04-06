@@ -47,7 +47,7 @@ fi
 
 echo "Initializing Go module..."
 cd "${REPO_ROOT}"
-go mod init agent-sdk-go
+go mod init github.com/pontus-devoteam/agent-sdk-go
 echo "replace github.com/pontus-devoteam/agent-sdk-go => ${REPO_ROOT}" >> go.mod
 go mod tidy
 echo "✅ Go module setup completed"

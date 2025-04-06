@@ -34,10 +34,7 @@ jobs:
         fi
         
         # Initialize a new module directly in the current directory
-        go mod init agent-sdk-go
-        
-        # Add replace directives to make sure packages are found correctly
-        echo "replace github.com/pontus-devoteam/agent-sdk-go => ./" >> go.mod
+        go mod init github.com/pontus-devoteam/agent-sdk-go
         
         # Run go mod tidy to discover dependencies
         go mod tidy
@@ -127,8 +124,7 @@ EOL
         if [ -f go.mod ]; then
           mv go.mod go.mod.bak
         fi
-        go mod init agent-sdk-go
-        echo "replace github.com/pontus-devoteam/agent-sdk-go => ./" >> go.mod
+        go mod init github.com/pontus-devoteam/agent-sdk-go
         go mod tidy
     
     - name: Run gosec security scanner
@@ -142,4 +138,24 @@ EOL
       if: always()
       run: |
         echo "Security scan complete (issues may have been found but workflow continues)"
-        exit 0 
+        exit 0
+
+  test:
+    name: Test with coverage
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.23'
+    
+    - name: Fix imports
+      run: |
+        goimports -w .
+    
+    - name: Test with coverage
+      run: |
+        go test -race -coverprofile=coverage.out -covermode=atomic ./... 

@@ -31,7 +31,7 @@ jobs:
           if [ -f go.mod ]; then
             mv go.mod go.mod.bak
           fi
-          go mod init agent-sdk-go
+          go mod init github.com/pontus-devoteam/agent-sdk-go
           echo "replace github.com/pontus-devoteam/agent-sdk-go => ./" >> go.mod
           go mod tidy
 

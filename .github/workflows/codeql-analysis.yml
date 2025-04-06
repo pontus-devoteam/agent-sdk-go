@@ -42,11 +42,15 @@ jobs:
         if [ -f go.mod ]; then
           mv go.mod go.mod.bak
         fi
-        go mod init agent-sdk-go
-        echo "replace github.com/pontus-devoteam/agent-sdk-go => ./" >> go.mod
+        go mod init github.com/pontus-devoteam/agent-sdk-go
         go mod tidy
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v2
       with:
-        category: "/language:${{matrix.language}}" 
+        category: "/language:${{matrix.language}}"
+
+    - name: Build
+      run: |
+        go mod init github.com/pontus-devoteam/agent-sdk-go
+        go build ./... 
