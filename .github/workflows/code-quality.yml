@@ -42,9 +42,15 @@ jobs:
               - ".*_test.go$"
               - ".*/mocks/.*"
           
-          linters-settings:
-            typecheck:
-              disabled: true
+          # Setting to ignore type checking issues
+          issues:
+            exclude-rules:
+              - path: _test\.go
+                linters:
+                  - typecheck
+              - path: mocks/.*
+                linters:
+                  - typecheck
           
           linters:
             disable-all: true
@@ -57,15 +63,13 @@ jobs:
               - unused
               - gofmt
               - goimports
-            disable:
-              - typecheck
           EOF
 
       - name: Use golangci-lint action
         uses: golangci/golangci-lint-action@v7
         with:
           version: latest
-          args: "--timeout=5m --disable=typecheck"
+          args: "--timeout=5m"
           skip-cache: true
           only-new-issues: true
         env:
