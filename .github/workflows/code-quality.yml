@@ -1,181 +1,155 @@
 name: Code Quality
-
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
-
+    branches: [main, master]
 jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23'
-    
-    - name: Fix Go module setup
-      run: |
-        # Show environment information
-        echo "===== ENVIRONMENT INFO ====="
-        echo "PWD: $(pwd)"
-        echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
-        echo "Go files found: $(find . -name "*.go" | wc -l)"
-        
-        # Delete existing go.mod if it exists to avoid conflicts
-        if [ -f go.mod ]; then
-          echo "Existing go.mod found, backing up and recreating..."
-          mv go.mod go.mod.bak
-        fi
-        
-        # Initialize a new module directly in the current directory
-        go mod init github.com/pontus-devoteam/agent-sdk-go
-        
-        # Run go mod tidy to discover dependencies
-        go mod tidy
-        
-        # Print go.mod for debugging
-        echo "===== UPDATED GO.MOD ====="
-        cat go.mod
-        
-        # Test that packages can be found
-        echo "===== DISCOVERING PACKAGES ====="
-        go list ./... || echo "No packages found"
-        
-        # Print the directory structure
-        echo "===== TOP-LEVEL DIRECTORIES ====="
-        ls -la
-        
-        echo "===== PKG STRUCTURE ====="
-        find ./pkg -type d | sort || echo "No pkg directory found"
-        
-        # Create golangci-lint config file
-        echo "===== CREATING GOLANGCI-LINT CONFIG ====="
-        cat > .golangci.yml << EOF
-run:
-  timeout: 5m
-  go: '1.23'
-  tests: true
-  allow-parallel-runners: true
-  skip-files:
-    - ".*_test.go$"
-    - ".*/mocks/.*"
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-linters-settings:
-  typecheck:
-    disabled: true
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
 
-linters:
-  disable-all: true
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - gofmt
-    - goimports
-  disable:
-    - typecheck
-EOF
-        cat .golangci.yml
-    
-    - name: Use golangci-lint action
-      uses: golangci/golangci-lint-action@v7
-      with:
-        version: v1.55.2
-        args: --timeout=5m --disable=typecheck --skip-dirs=test/mocks --skip-files=.*_test.go
-        skip-cache: true
-        skip-pkg-cache: true
-        skip-build-cache: true
-        only-new-issues: true
-      env:
-        GOFLAGS: "-buildvcs=false"
-    
-    - name: Fallback basic linting
-      if: always()
-      run: |
-        # Standard Go tools don't need complex module setup
-        echo "===== RUNNING GO STANDARD TOOLS ====="
-        go fmt ./... || echo "go fmt found issues (non-fatal)"
-        go vet -buildvcs=false ./... || echo "go vet found issues (non-fatal)"
-        
-        # Manually run gofmt on all files
-        echo "===== MANUALLY CHECKING FORMAT ====="
-        find . -name "*.go" | grep -v "vendor/" | xargs gofmt -d || echo "Format issues found (non-fatal)"
-        
-        echo "Linting complete (some tools may have reported issues but workflow continues)"
-        exit 0
+      - name: Fix Go module setup
+        run: |
+          # Delete existing go.mod if it exists to avoid conflicts
+          if [ -f go.mod ]; then
+            mv go.mod go.mod.bak
+          fi
+          # Initialize a new module directly in the current directory
+          go mod init github.com/pontus-devoteam/agent-sdk-go
+          # Run go mod tidy to discover dependencies
+          go mod tidy
+
+      - name: Create golangci-lint config
+        run: |
+          # Create golangci-lint config file
+          cat > .golangci.yml << 'EOF'
+          run:
+            timeout: 5m
+            go: '1.23'
+            tests: true
+            allow-parallel-runners: true
+            skip-files:
+              - ".*_test.go$"
+              - ".*/mocks/.*"
+          
+          linters-settings:
+            typecheck:
+              disabled: true
+          
+          linters:
+            disable-all: true
+            enable:
+              - errcheck
+              - gosimple
+              - govet
+              - ineffassign
+              - staticcheck
+              - unused
+              - gofmt
+              - goimports
+            disable:
+              - typecheck
+          EOF
+
+      - name: Use golangci-lint action
+        uses: golangci/golangci-lint-action@v7
+        with:
+          version: v1.55.2
+          args: "--timeout=5m --disable=typecheck --skip-dirs=test/mocks --skip-files=.*_test.go"
+          skip-cache: true
+          skip-pkg-cache: true
+          skip-build-cache: true
+          only-new-issues: true
+        env:
+          GOFLAGS: "-buildvcs=false"
+
+      - name: Fallback basic linting
+        if: always()
+        run: |
+          # Standard Go tools don't need complex module setup
+          echo "===== RUNNING GO STANDARD TOOLS ====="
+          go fmt ./... || echo "go fmt found issues (non-fatal)"
+          go vet -buildvcs=false ./... || echo "go vet found issues (non-fatal)"
+          
+          # Manually run gofmt on all files
+          echo "===== MANUALLY CHECKING FORMAT ====="
+          find . -name "*.go" | grep -v "vendor/" | xargs gofmt -d || echo "Format issues found (non-fatal)"
+          
+          echo "Linting complete (some tools may have reported issues but workflow continues)"
+          exit 0
 
   security:
     name: Security Scan
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23'
-    
-    - name: Fix Go module setup
-      run: |
-        # Same module setup as in the lint job
-        if [ -f go.mod ]; then
-          mv go.mod go.mod.bak
-        fi
-        go mod init github.com/pontus-devoteam/agent-sdk-go
-        go mod tidy
-    
-    - name: Run gosec security scanner
-      uses: securego/gosec@master
-      with:
-        args: -quiet ./...
-      env:
-        GOFLAGS: "-buildvcs=false"
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Fix Go module setup
+        run: |
+          # Same module setup as in the lint job
+          if [ -f go.mod ]; then
+            mv go.mod go.mod.bak
+          fi
+          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod tidy
+
+      - name: Run gosec security scanner
+        uses: securego/gosec@master
+        with:
+          args: -quiet ./...
+        env:
+          GOFLAGS: "-buildvcs=false"
       
-    - name: Always succeed
-      if: always()
-      run: |
-        echo "Security scan complete (issues may have been found but workflow continues)"
-        exit 0
+      - name: Always succeed
+        if: always()
+        run: |
+          echo "Security scan complete (issues may have been found but workflow continues)"
+          exit 0
 
   test:
     name: Test with coverage
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '1.23'
-    
-    - name: Fix Go module setup
-      run: |
-        # Same module setup as in the lint job
-        if [ -f go.mod ]; then
-          mv go.mod go.mod.bak
-        fi
-        go mod init github.com/pontus-devoteam/agent-sdk-go
-        go mod tidy
-        
-        # Install required tools
-        echo "Installing required tools..."
-        go install golang.org/x/tools/cmd/goimports@latest
-    
-    - name: Fix imports
-      run: |
-        goimports -w .
-    
-    - name: Test with coverage
-      run: |
-        go test -race -coverprofile=coverage.out -covermode=atomic ./... 
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Fix Go module setup
+        run: |
+          # Same module setup as in the lint job
+          if [ -f go.mod ]; then
+            mv go.mod go.mod.bak
+          fi
+          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod tidy
+          
+          # Install required tools
+          echo "Installing required tools..."
+          go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Fix imports
+        run: |
+          goimports -w .
+
+      - name: Test with coverage
+        run: |
+          go test -race -coverprofile=coverage.out -covermode=atomic ./...
