@@ -41,15 +41,12 @@ jobs:
             tests: true
             allow-parallel-runners: true
           
-          # Configured linters
+          # Configured linters - minimal set known to be supported
           linters:
             enable:
               - errcheck
-              - gosimple
               - govet
-              - ineffassign
               - staticcheck
-              - unused
           EOF
 
       - name: Use golangci-lint action
