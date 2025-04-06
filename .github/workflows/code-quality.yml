@@ -87,14 +87,10 @@ EOF
         cat .golangci.yml
     
     - name: Use golangci-lint action
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v7
       with:
         version: v1.55.2
-        args: >-
-          --timeout=5m
-          --disable=typecheck
-          --skip-dirs=test/mocks
-          --skip-files=.*_test.go
+        args: --timeout=5m --disable=typecheck --skip-dirs=test/mocks --skip-files=.*_test.go
         skip-cache: true
         skip-pkg-cache: true
         skip-build-cache: true
