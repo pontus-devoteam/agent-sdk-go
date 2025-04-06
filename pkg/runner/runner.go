@@ -1474,13 +1474,6 @@ func (r *Runner) handleHandoff(
 			}
 		}
 
-		// Create a continuation prompt to ensure the workflow continues after handoff returns
-		// This prompt is stored in the context but not sent directly to the model yet
-		continuationPrompt := fmt.Sprintf("Agent %s has been called. When it returns, please continue with the next step in your workflow based on its response.", handoffAgent.Name)
-
-		// Set the prompt in the context for use when the handoff returns
-		ctx = context.WithValue(ctx, "continuation_prompt", continuationPrompt)
-
 		// Update the streamed result with the handoff
 		eventCh <- model.StreamEvent{
 			Type:    model.StreamEventTypeHandoff,
