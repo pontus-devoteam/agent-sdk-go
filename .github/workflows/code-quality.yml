@@ -32,28 +32,32 @@ jobs:
         run: |
           # Create golangci-lint config file
           cat > .golangci.yml << 'EOF'
-          version: 2
+          # golangci-lint configuration for v2
+          version: "2"
+          
           run:
             timeout: 5m
             go: '1.23'
             tests: true
             allow-parallel-runners: true
-            skip-files:
-              - ".*_test.go$"
-              - ".*/mocks/.*"
           
-          # Setting to ignore type checking issues
-          issues:
-            exclude-rules:
-              - path: _test\.go
-                linters:
-                  - typecheck
-              - path: mocks/.*
-                linters:
-                  - typecheck
+          output:
+            sort-results: true
           
+          # This is needed to ignore type errors in test and mock files
+          run-rules:
+            skip-dirs:
+              - test/mocks
+          
+          # Configuration for specific linters
+          linters-settings:
+            govet:
+              check-shadowing: true
+            gofmt:
+              simplify: true
+          
+          # Configured linters
           linters:
-            disable-all: true
             enable:
               - errcheck
               - gosimple
