@@ -32,6 +32,7 @@ jobs:
         run: |
           # Create golangci-lint config file
           cat > .golangci.yml << 'EOF'
+          version: 2
           run:
             timeout: 5m
             go: '1.23'
@@ -64,7 +65,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: latest
-          args: "--timeout=5m --disable=typecheck --skip-dirs=test/mocks --skip-files=.*_test.go"
+          args: "--timeout=5m --disable=typecheck"
           skip-cache: true
           only-new-issues: true
         env:
