@@ -73,7 +73,7 @@ Agent SDK Go provides a comprehensive framework for building AI agents in Go. It
 
 ## 🌟 Features
 
-- ✅ **Multiple LLM Provider Support** - Support for both OpenAI and LM Studio
+- ✅ **Multiple LLM Provider Support** - Support for OpenAI, Anthropic Claude, and LM Studio
 - ✅ **Tool Integration** - Call Go functions directly from your LLM
 - ✅ **Agent Handoffs** - Create complex multi-agent workflows with specialized agents
 - ✅ **Structured Output** - Parse responses into Go structs
@@ -164,7 +164,7 @@ import (
     "log"
 
     "github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/openai"  // or "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
+    "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/openai"  // or providers/lmstudio or providers/anthropic
     "github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
     "github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
 )
@@ -173,6 +173,10 @@ func main() {
     // Create a provider (OpenAI example)
     provider := openai.NewProvider("your-openai-api-key")
     provider.SetDefaultModel("gpt-3.5-turbo")
+
+    // Or use Anthropic Claude (example)
+    // provider := anthropic.NewProvider("your-anthropic-api-key")
+    // provider.SetDefaultModel("claude-3-haiku-20240307")
 
     // Or use LM Studio (local model example)
     // provider := lmstudio.NewProvider()
@@ -201,7 +205,7 @@ func main() {
     // Create an agent
     assistant := agent.NewAgent("Assistant")
     assistant.SetModelProvider(provider)
-    assistant.WithModel("gpt-3.5-turbo")  // or "gemma-3-4b-it" for LM Studio
+    assistant.WithModel("gpt-3.5-turbo")  // or "gemma-3-4b-it" for LM Studio or "claude-3-haiku-20240307" for Anthropic
     assistant.SetSystemInstructions("You are a helpful assistant.")
     assistant.WithTools(getWeather)
 
@@ -238,6 +242,31 @@ To use the OpenAI provider:
    provider.SetAPIKey("your-openai-api-key")
    provider.SetDefaultModel("gpt-3.5-turbo")  // or any other OpenAI model
    ```
+
+### Anthropic Setup
+
+<details>
+<summary>Click to expand setup instructions</summary>
+
+To use the Anthropic provider:
+
+1. **Get an API Key**
+   - Sign up at [Anthropic Console](https://console.anthropic.com/)
+   - Create an API key in your account settings
+
+2. **Configure the Provider**
+   ```go
+   provider := anthropic.NewProvider("your-anthropic-api-key")
+   provider.SetDefaultModel("claude-3-haiku-20240307")  // or claude-3-sonnet/opus
+   
+   // Optional rate limiting configuration
+   provider.WithRateLimit(40, 80000) // 40 requests/min, 80,000 tokens/min
+   
+   // Optional retry configuration
+   provider.WithRetryConfig(3, 2*time.Second) // 3 retries with exponential backoff
+   ```
+
+</details>
 
 ### LM Studio Setup
 
@@ -551,6 +580,8 @@ The repository includes several examples to help you get started:
 | [Multi-Agent Example](./examples/multi_agent_example) | Demonstrates how to create a system of specialized agents that can collaborate on complex tasks using a local LLM via LM Studio |
 | [OpenAI Example](./examples/openai_example) | Shows how to use the OpenAI provider with function calling capabilities |
 | [OpenAI Multi-Agent Example](./examples/openai_multi_agent_example) | Illustrates multi-agent functionality using OpenAI models, with proper tool calling and streaming support |
+| [Anthropic Example](./examples/anthropic_example) | Demonstrates how to use the Anthropic Claude API with tool calling capabilities |
+| [Anthropic Handoff Example](./examples/anthropic_handoff_example) | Shows how to implement agent handoffs with Anthropic Claude models |
 | [Workflow Example](./examples/workflow_example) | Demonstrates advanced workflow management with state persistence between agent executions |
 
 ### Running Examples with a Local LLM
@@ -580,12 +611,33 @@ The repository includes several examples to help you get started:
    go run .
    ```
 
+### Running Examples with Anthropic
+
+1. Set your Anthropic API key as an environment variable
+   ```bash
+   export ANTHROPIC_API_KEY=your-anthropic-api-key
+   ```
+2. Navigate to the example directory
+   ```bash
+   cd examples/anthropic_example # or anthropic_handoff_example
+   ```
+3. Run the example
+   ```bash
+   go run .
+   ```
+
 ### Debugging
 
-You can enable debug output for OpenAI API calls by setting the `OPENAI_DEBUG` environment variable:
+You can enable debug output for provider API calls by setting the appropriate environment variable:
 
+For OpenAI:
 ```bash
 OPENAI_DEBUG=1 go run examples/openai_multi_agent_example/main.go
+```
+
+For Anthropic:
+```bash
+ANTHROPIC_DEBUG=1 go run examples/anthropic_example/main.go
 ```
 
 ## 🛠️ Development

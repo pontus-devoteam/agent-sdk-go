@@ -161,10 +161,6 @@ func (m *Model) getResponseOnce(ctx context.Context, request *model.Request) (*m
 		return nil, fmt.Errorf("failed to construct request: %w", err)
 	}
 
-	// Debug output
-	requestJSON, _ := json.MarshalIndent(chatRequest, "", "  ")
-	fmt.Printf("DEBUG - OpenAI Request: %s\n", requestJSON)
-
 	// Marshal the request to JSON
 	requestBody, err := json.Marshal(chatRequest)
 	if err != nil {

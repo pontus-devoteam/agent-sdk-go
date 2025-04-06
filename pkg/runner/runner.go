@@ -318,10 +318,11 @@ func (r *Runner) prepareModelSettings(agent AgentType, runConfig *RunConfig, con
 func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interface{}, opts *RunOptions) (*result.RunResult, error) {
 	// Initialize result
 	runResult := &result.RunResult{
-		Input:       input,
-		NewItems:    make([]result.RunItem, 0),
-		LastAgent:   agent,
-		FinalOutput: nil,
+		Input:        input,
+		NewItems:     make([]result.RunItem, 0),
+		LastAgent:    agent,
+		FinalOutput:  nil,
+		RawResponses: make([]model.Response, 0), // Initialize the raw responses slice
 	}
 
 	// Set up tracing if not disabled
@@ -357,6 +358,9 @@ func (r *Runner) runAgentLoop(ctx context.Context, agent AgentType, input interf
 		if err != nil {
 			return nil, err
 		}
+
+		// Store the raw response in the result
+		runResult.RawResponses = append(runResult.RawResponses, *response)
 
 		// Process the response
 		// Check if we have a final output (structured output)
@@ -657,6 +661,11 @@ func (r *Runner) processToolCalls(ctx context.Context, agent AgentType, response
 
 // updateInputWithToolResults updates the input with the tool results
 func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *model.Response, toolResults []interface{}, consecutiveToolCalls int) interface{} {
+	// Debug output
+	fmt.Println("DEBUG - Updating input with tool results")
+	fmt.Printf("DEBUG - Current input type: %T\n", currentInput)
+	fmt.Printf("DEBUG - Tool results: %+v\n", toolResults)
+
 	// If the input is a string, convert it to a list
 	if _, ok := currentInput.(string); ok {
 		currentInput = []interface{}{
@@ -724,6 +733,8 @@ func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *
 		// Now add each tool result after the assistant message
 		for _, result := range toolResults {
 			if toolResult, ok := result.(map[string]interface{}); ok {
+				// Debug the tool result before adding
+				fmt.Printf("DEBUG - Adding tool result: %+v\n", toolResult)
 				inputList = append(inputList, toolResult)
 			}
 		}
@@ -743,6 +754,12 @@ func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *
 			"role":    "user",
 			"content": "Now that you have the information from the tool(s), please provide a complete response to my original question.",
 		})
+	}
+
+	// Debug the final input list
+	fmt.Println("DEBUG - Final input list:")
+	for i, item := range inputList {
+		fmt.Printf("DEBUG - Item %d: %+v\n", i, item)
 	}
 
 	return inputList
@@ -845,17 +862,37 @@ func (r *Runner) executeToolCall(ctx context.Context, agent AgentType, tc model.
 		}
 	}
 
-	// Create the tool result for the model
-	modelToolResult := map[string]interface{}{
-		"type": "tool_result",
-		"tool_call": map[string]interface{}{
-			"name":       tc.Name,
-			"id":         toolCallID,
-			"parameters": tc.Parameters,
-		},
-		"tool_result": map[string]interface{}{
-			"content": toolResult,
-		},
+	// Detect if the provider is Anthropic based on model provider name
+	isAnthropic := false
+	if agent.Model != nil {
+		providerName := reflect.TypeOf(agent.Model).String()
+		if strings.Contains(strings.ToLower(providerName), "anthropic") {
+			isAnthropic = true
+		}
+	}
+
+	var modelToolResult interface{}
+
+	if isAnthropic {
+		// Anthropic uses a different format for tool results
+		modelToolResult = map[string]interface{}{
+			"role":         "tool",
+			"tool_call_id": toolCallID,
+			"content":      fmt.Sprintf("%v", toolResult),
+		}
+	} else {
+		// Standard OpenAI format
+		modelToolResult = map[string]interface{}{
+			"type": "tool_result",
+			"tool_call": map[string]interface{}{
+				"name":       tc.Name,
+				"id":         toolCallID,
+				"parameters": tc.Parameters,
+			},
+			"tool_result": map[string]interface{}{
+				"content": toolResult,
+			},
+		}
 	}
 
 	return modelToolResult, toolCallItem, toolResultItem, nil
