@@ -63,11 +63,9 @@ jobs:
       - name: Use golangci-lint action
         uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.55.2
+          version: latest
           args: "--timeout=5m --disable=typecheck --skip-dirs=test/mocks --skip-files=.*_test.go"
           skip-cache: true
-          skip-pkg-cache: true
-          skip-build-cache: true
           only-new-issues: true
         env:
           GOFLAGS: "-buildvcs=false"
