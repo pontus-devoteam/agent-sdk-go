@@ -570,23 +570,16 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 			// Anthropic supports "auto" and "none" as string values
 			if toolChoice == "auto" || toolChoice == "none" {
 				anthropicRequest.ToolChoice = toolChoice
-			} else if strings.HasPrefix(toolChoice, "handoff_to_") || strings.Contains(toolChoice, "get_workflow_state") || strings.Contains(toolChoice, "update_workflow_phase") {
+			} else {
 				// For any specific tool name (including handoffs), use the structured format
+				// Anthropic requires a specific format: {"type": "tool", "name": "tool_name"}
 				anthropicRequest.ToolChoice = map[string]interface{}{
 					"type": "tool",
-					"tool": map[string]interface{}{
-						"name": toolChoice,
-					},
+					"name": toolChoice,
 				}
 
 				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 					fmt.Printf("DEBUG - Setting tool_choice to specific tool: %s\n", toolChoice)
-				}
-			} else {
-				// Default to auto if we don't understand the format
-				anthropicRequest.ToolChoice = "auto"
-				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-					fmt.Printf("DEBUG - Defaulting tool_choice to auto for unsupported value: %s\n", toolChoice)
 				}
 			}
 		}
