@@ -679,27 +679,51 @@ func (m *Model) createMessages(input interface{}) ([]AnthropicMessage, error) {
 					fmt.Println("DEBUG - Found tool result message")
 				}
 
-				// Extract the tool call ID, name, and result
+				// Extract the tool call ID and result content
 				var toolCallID string
 				if id, ok := toolCall["id"].(string); ok {
 					toolCallID = id
 				}
 
-				// Format the content based on the tool result
-				var content string
+				// Get the result content
+				var resultContent interface{}
 				if result, ok := msg["tool_result"].(map[string]interface{}); ok {
-					if resultContent, ok := result["content"]; ok {
-						// Convert the result content to a string
-						content = fmt.Sprintf("Tool result for call %s: %v", toolCallID, resultContent)
+					if content, ok := result["content"]; ok {
+						resultContent = content
 					}
 				}
 
-				// Add a user message with the tool result content
-				if content != "" && strings.TrimSpace(content) != "" {
-					messages = append(messages, AnthropicMessage{
-						Role:    "user",
-						Content: content,
-					})
+				// We need to convert our tool result format to Anthropic's format
+				// The AnthropicMessage takes a string content, but Anthropic's API
+				// actually expects the "content" field to contain an array of content blocks
+				// when sending tool results. This is a quirk of their API.
+				toolResultContent := map[string]interface{}{
+					"type":        "tool_result",
+					"tool_use_id": toolCallID,
+					"content":     resultContent,
+				}
+
+				// For a tool result, we need to wrap this in a Content array
+				contentBlocks := []interface{}{toolResultContent}
+
+				// Marshal the content blocks to JSON
+				contentJSON, err := json.Marshal(contentBlocks)
+				if err != nil {
+					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+						fmt.Printf("DEBUG - Error marshaling tool result: %v\n", err)
+					}
+					continue
+				}
+
+				// Add the message with the raw JSON as content
+				messages = append(messages, AnthropicMessage{
+					Role:    "user",
+					Content: string(contentJSON),
+				})
+
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Printf("DEBUG - Added tool result message for tool ID %s with content: %s\n",
+						toolCallID, string(contentJSON))
 				}
 				continue
 			}
@@ -1046,4 +1070,28 @@ func generateID() string {
 		return fmt.Sprintf("id_%d", time.Now().UnixNano())
 	}
 	return fmt.Sprintf("id_%x", b)
+}
+
+// formatToolResultContent formats the tool result content as a JSON string
+func formatToolResultContent(content interface{}) string {
+	if content == nil {
+		return "null"
+	}
+
+	switch v := content.(type) {
+	case string:
+		// For string content, quote it properly
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf(`"%v"`, v)
+		}
+		return string(bytes)
+	default:
+		// For other types, convert to JSON
+		bytes, err := json.Marshal(v)
+		if err != nil {
+			return fmt.Sprintf(`"%v"`, v)
+		}
+		return string(bytes)
+	}
 }
