@@ -60,7 +60,7 @@ type AnthropicMessageRequest struct {
 	TopK          int                `json:"top_k,omitempty"`
 	Stream        bool               `json:"stream,omitempty"`
 	Tools         []AnthropicTool    `json:"tools,omitempty"`
-	ToolChoice    string             `json:"tool_choice,omitempty"`
+	ToolChoice    interface{}        `json:"tool_choice,omitempty"`
 	StopSequences []string           `json:"stop_sequences,omitempty"`
 }
 
@@ -566,24 +566,31 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		// Only set it if it's explicitly in a format Anthropic understands
 		if request.Settings != nil && request.Settings.ToolChoice != nil {
 			toolChoice := *request.Settings.ToolChoice
-			// Anthropic only supports "auto" and "none" as string values
+			// Anthropic supports "auto" and "none" as string values
 			if toolChoice == "auto" || toolChoice == "none" {
 				anthropicRequest.ToolChoice = toolChoice
 			} else {
 				// Check if it's a specific tool name, specifically for handoffs
 				if strings.HasPrefix(toolChoice, "handoff_to_") {
-					// For Anthropic, we need to pass a struct, not a map
-					// but AnthropicMessageRequest.ToolChoice is a string, so we can't do this directly.
-					// Instead, we'll need to set "auto" and ensure the tool is available
-					anthropicRequest.ToolChoice = "auto"
+					// For handoffs, we need to use the structured tool_choice format
+					handoffToolName := toolChoice
+
+					// Create the tool_choice structure that Anthropic expects
+					anthropicRequest.ToolChoice = map[string]interface{}{
+						"type": "tool",
+						"tool": map[string]interface{}{
+							"name": handoffToolName,
+						},
+					}
+
 					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-						fmt.Println("DEBUG - Setting tool_choice to auto for handoff:", toolChoice)
+						fmt.Printf("DEBUG - Setting tool_choice to specific tool for handoff: %s\n", handoffToolName)
 					}
 				} else {
-					// Don't set it if it's not a supported value
-					// This avoids the "Input should be a valid dictionary" error
+					// Default to auto if we don't understand the format
+					anthropicRequest.ToolChoice = "auto"
 					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-						fmt.Println("DEBUG - Ignoring unsupported tool_choice value:", toolChoice)
+						fmt.Println("DEBUG - Defaulting tool_choice to auto for unsupported value:", toolChoice)
 					}
 				}
 			}
