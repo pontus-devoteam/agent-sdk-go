@@ -23,8 +23,10 @@ import (
 // Model implements the model.Model interface for Anthropic
 type Model struct {
 	// Configuration
-	ModelName string
-	Provider  *Provider
+	ModelName           string
+	Provider            *Provider
+	MaxHistoryMessages  int  // Maximum number of previous messages to include in request
+	IncludeToolMessages bool // Whether to include tool result messages in the history limit
 }
 
 // AnthropicMessage represents a message in a conversation
@@ -521,6 +523,17 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 	messages, err := m.createMessages(request.Input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create messages: %w", err)
+	}
+
+	// Apply history limit if configured
+	if m.MaxHistoryMessages > 0 && len(messages) > m.MaxHistoryMessages {
+		if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+			fmt.Printf("DEBUG - Limiting message history from %d to %d messages\n",
+				len(messages), m.MaxHistoryMessages)
+		}
+
+		// Keep only the most recent messages based on configured limit
+		messages = messages[len(messages)-m.MaxHistoryMessages:]
 	}
 
 	// Create the Anthropic request

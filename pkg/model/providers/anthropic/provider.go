@@ -36,6 +36,10 @@ type Provider struct {
 	// Model configuration
 	DefaultModel string
 
+	// Message history configuration
+	MaxHistoryMessages  int  // Maximum number of previous messages to include
+	IncludeToolMessages bool // Whether to include tool result messages in the history limit
+
 	// Rate limiting configuration
 	RPM        int           // Requests per minute
 	TPM        int           // Tokens per minute
@@ -123,6 +127,22 @@ func (p *Provider) SetDefaultModel(modelName string) *Provider {
 	return p.WithDefaultModel(modelName)
 }
 
+// WithMaxHistoryMessages sets the maximum number of previous messages to include in each request
+func (p *Provider) WithMaxHistoryMessages(maxMessages int) *Provider {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.MaxHistoryMessages = maxMessages
+	return p
+}
+
+// WithToolMessagesInHistory configures whether tool messages count toward the history limit
+func (p *Provider) WithToolMessagesInHistory(include bool) *Provider {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.IncludeToolMessages = include
+	return p
+}
+
 // GetModel returns a model by name
 func (p *Provider) GetModel(name string) (model.Model, error) {
 	p.mu.RLock()
@@ -143,8 +163,10 @@ func (p *Provider) GetModel(name string) (model.Model, error) {
 
 	// Create a new model
 	return &Model{
-		ModelName: name,
-		Provider:  p,
+		ModelName:           name,
+		Provider:            p,
+		MaxHistoryMessages:  p.MaxHistoryMessages,
+		IncludeToolMessages: p.IncludeToolMessages,
 	}, nil
 }
 
