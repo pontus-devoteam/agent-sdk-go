@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Model implements the model.Model interface for Anthropic
@@ -554,6 +556,12 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		}
 		anthropicRequest.Tools = tools
 
+		// Add handoff tools from request.Handoffs if available
+		if request.Handoffs != nil && len(request.Handoffs) > 0 {
+			// Add handoff tools to the request
+			m.addHandoffToolsToRequest(anthropicRequest, request.Handoffs)
+		}
+
 		// Anthropic handles tool_choice differently from OpenAI
 		// Only set it if it's explicitly in a format Anthropic understands
 		if request.Settings != nil && request.Settings.ToolChoice != nil {
@@ -562,16 +570,56 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 			if toolChoice == "auto" || toolChoice == "none" {
 				anthropicRequest.ToolChoice = toolChoice
 			} else {
-				// Don't set it if it's not a supported value
-				// This avoids the "Input should be a valid dictionary" error
-				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-					fmt.Println("DEBUG - Ignoring unsupported tool_choice value:", toolChoice)
+				// Check if it's a specific tool name, specifically for handoffs
+				if strings.HasPrefix(toolChoice, "handoff_to_") {
+					// For Anthropic, we need to pass a struct, not a map
+					// but AnthropicMessageRequest.ToolChoice is a string, so we can't do this directly.
+					// Instead, we'll need to set "auto" and ensure the tool is available
+					anthropicRequest.ToolChoice = "auto"
+					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+						fmt.Println("DEBUG - Setting tool_choice to auto for handoff:", toolChoice)
+					}
+				} else {
+					// Don't set it if it's not a supported value
+					// This avoids the "Input should be a valid dictionary" error
+					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+						fmt.Println("DEBUG - Ignoring unsupported tool_choice value:", toolChoice)
+					}
 				}
 			}
 		}
 	}
 
 	return anthropicRequest, nil
+}
+
+// addHandoffToolsToRequest adds handoff tools to the Anthropic request
+func (m *Model) addHandoffToolsToRequest(anthropicRequest *AnthropicMessageRequest, handoffs []interface{}) {
+	if len(handoffs) == 0 {
+		return
+	}
+
+	for _, handoff := range handoffs {
+		// Convert the handoff to an Anthropic tool
+		if handoffTool, ok := handoff.(map[string]interface{}); ok {
+			// It's already in the right format
+			if handoffTool["type"] == "function" && handoffTool["function"] != nil {
+				function := handoffTool["function"].(map[string]interface{})
+
+				// Create Anthropic tool format
+				anthropicTool := AnthropicTool{
+					Name:        function["name"].(string),
+					Description: function["description"].(string),
+					InputSchema: function["parameters"].(map[string]interface{}),
+				}
+
+				anthropicRequest.Tools = append(anthropicRequest.Tools, anthropicTool)
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Printf("Added handoff tool to Anthropic request: %s\n", function["name"].(string))
+				}
+			}
+		}
+	}
 }
 
 // createMessages creates AnthropicMessages from a model.Request.Input
@@ -587,127 +635,114 @@ func (m *Model) createMessages(input interface{}) ([]AnthropicMessage, error) {
 	switch v := input.(type) {
 	case string:
 		// Single string input becomes a user message
-		messages = []AnthropicMessage{
-			{
-				Role:    "user",
-				Content: v,
-			},
+		// Skip empty content messages to avoid Anthropic API errors
+		if v != "" && strings.TrimSpace(v) != "" {
+			messages = []AnthropicMessage{
+				{
+					Role:    "user",
+					Content: v,
+				},
+			}
 		}
 	case []interface{}:
 		// Array of messages
 		for _, msgInterface := range v {
 			msg, ok := msgInterface.(map[string]interface{})
 			if !ok {
-				return nil, fmt.Errorf("invalid message format: %v", msgInterface)
+				return nil, fmt.Errorf("message must be a map, got %T", msgInterface)
 			}
 
-			// Debug the message being processed
+			// Process the message based on type
 			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 				fmt.Printf("DEBUG - Processing message: %+v\n", msg)
 			}
 
-			// First check if this is a tool result with special format
-			if toolResultType, ok := msg["type"].(string); ok && toolResultType == "tool_result" {
+			// Check if it's a tool result message
+			if toolCall, ok := msg["tool_call"].(map[string]interface{}); ok && msg["tool_result"] != nil {
 				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 					fmt.Println("DEBUG - Found tool result message")
 				}
 
-				// This is an OpenAI-style tool result, which needs special handling for Anthropic
-				toolCall, _ := msg["tool_call"].(map[string]interface{})
-				toolResult, _ := msg["tool_result"].(map[string]interface{})
+				// Extract the tool call ID, name, and result
+				var toolCallID string
+				if id, ok := toolCall["id"].(string); ok {
+					toolCallID = id
+				}
 
-				if toolCall != nil && toolResult != nil {
-					// Format in Anthropic's expected format
-					toolCallID, _ := toolCall["id"].(string)
-					content, _ := toolResult["content"]
-
-					if toolCallID != "" && content != nil {
-						// Add a tool message in Anthropic's format
-						messages = append(messages, AnthropicMessage{
-							Role:    "user", // Anthropic expects tool results as user messages
-							Content: fmt.Sprintf("Tool result for call %s: %v", toolCallID, content),
-						})
-						continue
+				// Format the content based on the tool result
+				var content string
+				if result, ok := msg["tool_result"].(map[string]interface{}); ok {
+					if resultContent, ok := result["content"]; ok {
+						// Convert the result content to a string
+						content = fmt.Sprintf("Tool result for call %s: %v", toolCallID, resultContent)
 					}
 				}
+
+				// Add a user message with the tool result content
+				if content != "" && strings.TrimSpace(content) != "" {
+					messages = append(messages, AnthropicMessage{
+						Role:    "user",
+						Content: content,
+					})
+				}
+				continue
 			}
 
-			// Next check for role and handle accordingly
-			role, ok := msg["role"].(string)
-			if !ok {
-				return nil, fmt.Errorf("message missing role: %v", msg)
-			}
-
-			// Check if this is a tool message (Anthropic's format)
-			if role == "tool" {
+			// Check for tool message type
+			if role, ok := msg["role"].(string); ok && role == "tool" {
 				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 					fmt.Println("DEBUG - Found tool message with role=tool")
 				}
-
-				// Get tool call ID and content
-				toolCallID, _ := msg["tool_call_id"].(string)
-				content, _ := msg["content"].(string)
-
-				if toolCallID != "" && content != "" {
-					// Add a tool response as a user message for Anthropic
-					messages = append(messages, AnthropicMessage{
-						Role:    "user",
-						Content: fmt.Sprintf("Tool response [%s]: %s", toolCallID, content),
-					})
-					continue
-				}
+				// Skip tool messages, we handle them differently
+				continue
 			}
 
-			// Standard message handling
-			content, ok := msg["content"].(string)
-			if !ok || strings.TrimSpace(content) == "" {
-				// For Anthropic API, content is required and cannot be empty
-				if role == "assistant" {
-					// If an assistant message has tool calls but no content,
-					// add a descriptive message about the tool usage
-					if toolCallsInterface, exists := msg["tool_calls"]; exists {
-						toolCallsArray, ok := toolCallsInterface.([]interface{})
-						if ok && len(toolCallsArray) > 0 {
-							var toolNames []string
-							for _, tc := range toolCallsArray {
-								if tcMap, ok := tc.(map[string]interface{}); ok {
-									if fn, ok := tcMap["function"].(map[string]interface{}); ok {
-										if name, ok := fn["name"].(string); ok {
-											toolNames = append(toolNames, name)
-										}
-									}
-								}
-							}
-							if len(toolNames) > 0 {
-								content = fmt.Sprintf("I'll use the %s tool to help with this.", strings.Join(toolNames, ", "))
-							} else {
-								content = "I'll use a tool to help with this request."
-							}
-						} else {
-							content = "I'll use a tool to help with this request."
-						}
+			// Extract the role and content
+			role, roleOk := msg["role"].(string)
+			content, contentOk := msg["content"].(string)
+
+			// Skip messages with empty content
+			if contentOk && (content == "" || strings.TrimSpace(content) == "") {
+				continue
+			}
+
+			// Error if missing required fields
+			if !roleOk || !contentOk {
+				if !roleOk {
+					return nil, fmt.Errorf("message must have a role")
+				}
+				if !contentOk {
+					// If content is missing but tool_calls is present, create a placeholder content
+					if _, hasToolCalls := msg["tool_calls"]; hasToolCalls {
+						content = "I'll use a tool to help with this request."
 					} else {
-						content = "I'm processing your request."
+						return nil, fmt.Errorf("message must have content")
 					}
-				} else {
-					// Fallback for other roles or cases
-					content = "Processing your request..."
 				}
 			}
 
-			// Map OpenAI roles to Anthropic roles
-			anthropicRole := mapRole(role)
+			// Map role to Anthropic format
+			anthropicRole := role
+			if role == "assistant" {
+				anthropicRole = "assistant"
+			} else if role == "user" {
+				anthropicRole = "user"
+			} else if role == "system" {
+				// Skip system messages, handled separately
+				continue
+			}
 
+			// Add the message
 			messages = append(messages, AnthropicMessage{
 				Role:    anthropicRole,
 				Content: content,
 			})
 		}
 	default:
-		return nil, fmt.Errorf("unsupported input type: %T", input)
+		return nil, fmt.Errorf("unexpected input type: %T", input)
 	}
 
-	// Print the final messages
+	// Debug the final messages
 	if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 		fmt.Println("DEBUG - Final Anthropic messages:")
 		for i, msg := range messages {
@@ -718,67 +753,56 @@ func (m *Model) createMessages(input interface{}) ([]AnthropicMessage, error) {
 	return messages, nil
 }
 
-// mapRole maps OpenAI message roles to Anthropic roles
-func mapRole(role string) string {
-	switch role {
-	case "user":
-		return "user"
-	case "assistant":
-		return "assistant"
-	case "system":
-		return "user" // Anthropic doesn't have a system role in messages
-	case "tool":
-		return "assistant" // Tools map to assistant in Anthropic
-	default:
-		return "user" // Default to user for unknown roles
-	}
-}
-
-// createTools creates AnthropicTools from model.Request.Tools
+// createTools creates AnthropicTools from model.Tools
 func (m *Model) createTools(tools []interface{}) ([]AnthropicTool, error) {
-	var anthropicTools []AnthropicTool
-
 	if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 		fmt.Println("DEBUG - Creating tools from:", tools)
 	}
 
-	for _, tool := range tools {
-		toolMap, ok := tool.(map[string]interface{})
+	anthropicTools := make([]AnthropicTool, 0, len(tools))
+
+	for _, toolInterface := range tools {
+		// Convert the tool to a map
+		toolMap, ok := toolInterface.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("invalid tool format: %v", tool)
+			return nil, fmt.Errorf("tool must be a map, got %T", toolInterface)
 		}
 
-		// Extract function details
-		function, ok := toolMap["function"].(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("tool missing function: %v", toolMap)
-		}
+		// Check if it's a function tool
+		if toolMap["type"] == "function" && toolMap["function"] != nil {
+			function, ok := toolMap["function"].(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("function must be a map, got %T", toolMap["function"])
+			}
 
-		name, ok := function["name"].(string)
-		if !ok {
-			return nil, fmt.Errorf("function missing name: %v", function)
-		}
+			// Extract name and parameters
+			name, ok := function["name"].(string)
+			if !ok {
+				return nil, fmt.Errorf("function name must be a string, got %T", function["name"])
+			}
 
-		description := ""
-		if descVal, ok := function["description"].(string); ok {
-			description = descVal
-		}
+			description := ""
+			if desc, ok := function["description"].(string); ok {
+				description = desc
+			}
 
-		parameters := make(map[string]interface{})
-		if paramsVal, ok := function["parameters"].(map[string]interface{}); ok {
-			parameters = paramsVal
-		}
+			parameters, ok := function["parameters"].(map[string]interface{})
+			if !ok {
+				return nil, fmt.Errorf("parameters must be a map, got %T", function["parameters"])
+			}
 
-		tool := AnthropicTool{
-			Name:        name,
-			Description: description,
-			InputSchema: parameters,
-		}
+			// Create the Anthropic tool
+			tool := AnthropicTool{
+				Name:        name,
+				Description: description,
+				InputSchema: parameters,
+			}
 
-		if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-			fmt.Printf("DEBUG - Created Anthropic tool: %+v\n", tool)
+			anthropicTools = append(anthropicTools, tool)
+			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+				fmt.Printf("DEBUG - Created Anthropic tool: %+v\n", tool)
+			}
 		}
-		anthropicTools = append(anthropicTools, tool)
 	}
 
 	return anthropicTools, nil
@@ -786,7 +810,10 @@ func (m *Model) createTools(tools []interface{}) ([]AnthropicTool, error) {
 
 // parseResponse parses an Anthropic API response into a model.Response
 func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*model.Response, error) {
+	// Create the model response
 	response := &model.Response{
+		Content:   "",
+		ToolCalls: make([]model.ToolCall, 0),
 		Usage: &model.Usage{
 			PromptTokens:     anthropicResponse.Usage.InputTokens,
 			CompletionTokens: anthropicResponse.Usage.OutputTokens,
@@ -794,7 +821,7 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 		},
 	}
 
-	// Extract content
+	// Extract text content
 	var textContent strings.Builder
 	for _, content := range anthropicResponse.Content {
 		if content.Type == "text" {
@@ -806,6 +833,13 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 				Name:       content.Name,
 				Parameters: content.Input,
 			}
+
+			// Check if this is a handoff call
+			if checkIfHandoffCall(&toolCall, response) {
+				// If it's a handoff, it's already been handled by checkIfHandoffCall
+				continue
+			}
+
 			response.ToolCalls = append(response.ToolCalls, toolCall)
 		}
 	}
@@ -826,11 +860,20 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 				fmt.Printf("DEBUG - Found tool call: %+v\n", tool)
 			}
-			response.ToolCalls = append(response.ToolCalls, model.ToolCall{
+
+			toolCall := model.ToolCall{
 				ID:         tool.ID,
 				Name:       tool.Name,
 				Parameters: tool.Input,
-			})
+			}
+
+			// Check if this is a handoff call
+			if checkIfHandoffCall(&toolCall, response) {
+				// If it's a handoff, it's already been handled by checkIfHandoffCall
+				continue
+			}
+
+			response.ToolCalls = append(response.ToolCalls, toolCall)
 		}
 	}
 
@@ -840,6 +883,96 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 	}
 
 	return response, nil
+}
+
+// checkIfHandoffCall checks if a tool call is a handoff and updates the response if it is
+func checkIfHandoffCall(toolCall *model.ToolCall, response *model.Response) bool {
+	// Check various patterns for handoff tools
+	if strings.HasPrefix(strings.ToLower(toolCall.Name), "handoff_to_") {
+		// Extract the agent name from the tool name
+		agentName := strings.TrimPrefix(toolCall.Name, "handoff_to_")
+		var input string
+
+		// Get input from parameters
+		if inputVal, ok := toolCall.Parameters["input"].(string); ok {
+			input = inputVal
+		} else {
+			// Generate an input from all parameters
+			inputBytes, _ := json.Marshal(toolCall.Parameters)
+			input = string(inputBytes)
+		}
+
+		response.HandoffCall = &model.HandoffCall{
+			AgentName: agentName,
+			Input:     input,
+		}
+
+		if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+			fmt.Printf("DEBUG - Detected handoff to agent: %s\n", agentName)
+		}
+
+		return true
+	} else if strings.HasPrefix(strings.ToLower(toolCall.Name), "handoff") {
+		// Extract the agent name from the arguments
+		if agentName, ok := toolCall.Parameters["agent"].(string); ok {
+			input := ""
+			if inputVal, ok := toolCall.Parameters["input"].(string); ok {
+				input = inputVal
+			} else {
+				// Generate an input from the remaining arguments
+				inputMap := make(map[string]interface{})
+				for k, v := range toolCall.Parameters {
+					if k != "agent" {
+						inputMap[k] = v
+					}
+				}
+				inputBytes, _ := json.Marshal(inputMap)
+				input = string(inputBytes)
+			}
+
+			response.HandoffCall = &model.HandoffCall{
+				AgentName: agentName,
+				Input:     input,
+			}
+
+			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+				fmt.Printf("DEBUG - Detected handoff to agent: %s\n", agentName)
+			}
+
+			return true
+		}
+	} else if strings.Contains(strings.ToLower(toolCall.Name), "agent") {
+		// It might be trying to call an agent directly
+		possibleAgentName := strings.Replace(strings.ToLower(toolCall.Name), "_agent", " agent", -1)
+		possibleAgentName = title(possibleAgentName)
+
+		// Only use this heuristic if the name ends with "Agent"
+		if strings.HasSuffix(possibleAgentName, "Agent") {
+			// Generate an input from all the arguments
+			inputBytes, _ := json.Marshal(toolCall.Parameters)
+
+			response.HandoffCall = &model.HandoffCall{
+				AgentName: possibleAgentName,
+				Input:     string(inputBytes),
+			}
+
+			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+				fmt.Printf("DEBUG - Detected handoff to agent: %s\n", possibleAgentName)
+			}
+
+			return true
+		}
+	}
+
+	return false
+}
+
+// title converts a string to title case (first letter of each word capitalized)
+// This is a replacement for cases.Title(language.Und, cases.NoLower).String()
+func title(s string) string {
+	// Initialize a case.Caser
+	c := cases.Title(language.Und, cases.NoLower)
+	return c.String(s)
 }
 
 // handleError handles an error response from the API
