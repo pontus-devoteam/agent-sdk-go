@@ -566,32 +566,27 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		// Only set it if it's explicitly in a format Anthropic understands
 		if request.Settings != nil && request.Settings.ToolChoice != nil {
 			toolChoice := *request.Settings.ToolChoice
+
 			// Anthropic supports "auto" and "none" as string values
 			if toolChoice == "auto" || toolChoice == "none" {
 				anthropicRequest.ToolChoice = toolChoice
+			} else if strings.HasPrefix(toolChoice, "handoff_to_") || strings.Contains(toolChoice, "get_workflow_state") || strings.Contains(toolChoice, "update_workflow_phase") {
+				// For any specific tool name (including handoffs), use the structured format
+				anthropicRequest.ToolChoice = map[string]interface{}{
+					"type": "tool",
+					"tool": map[string]interface{}{
+						"name": toolChoice,
+					},
+				}
+
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Printf("DEBUG - Setting tool_choice to specific tool: %s\n", toolChoice)
+				}
 			} else {
-				// Check if it's a specific tool name, specifically for handoffs
-				if strings.HasPrefix(toolChoice, "handoff_to_") {
-					// For handoffs, we need to use the structured tool_choice format
-					handoffToolName := toolChoice
-
-					// Create the tool_choice structure that Anthropic expects
-					anthropicRequest.ToolChoice = map[string]interface{}{
-						"type": "tool",
-						"tool": map[string]interface{}{
-							"name": handoffToolName,
-						},
-					}
-
-					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-						fmt.Printf("DEBUG - Setting tool_choice to specific tool for handoff: %s\n", handoffToolName)
-					}
-				} else {
-					// Default to auto if we don't understand the format
-					anthropicRequest.ToolChoice = "auto"
-					if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-						fmt.Println("DEBUG - Defaulting tool_choice to auto for unsupported value:", toolChoice)
-					}
+				// Default to auto if we don't understand the format
+				anthropicRequest.ToolChoice = "auto"
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Printf("DEBUG - Defaulting tool_choice to auto for unsupported value: %s\n", toolChoice)
 				}
 			}
 		}
