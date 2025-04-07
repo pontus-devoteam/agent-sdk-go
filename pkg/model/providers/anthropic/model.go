@@ -567,17 +567,38 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		if request.Settings != nil && request.Settings.ToolChoice != nil {
 			toolChoice := *request.Settings.ToolChoice
 
-			// Anthropic supports "auto" and "none" as string values
-			if toolChoice == "auto" || toolChoice == "none" {
-				anthropicRequest.ToolChoice = toolChoice
-			} else {
-				// For any specific tool name (including handoffs), use the structured format
-				// Anthropic requires a specific format: {"type": "tool", "name": "tool_name"}
+			// Handle different formats of tool_choice based on Anthropic API docs
+			switch toolChoice {
+			case "auto":
+				// For "auto", use type format
+				anthropicRequest.ToolChoice = map[string]interface{}{
+					"type": "auto",
+				}
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Println("DEBUG - Setting tool_choice to type: auto")
+				}
+			case "none":
+				// For "none", use type format
+				anthropicRequest.ToolChoice = map[string]interface{}{
+					"type": "none",
+				}
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Println("DEBUG - Setting tool_choice to type: none")
+				}
+			case "any":
+				// For "any", use the object format with "any" type
+				anthropicRequest.ToolChoice = map[string]interface{}{
+					"type": "any",
+				}
+				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+					fmt.Println("DEBUG - Setting tool_choice to type: any")
+				}
+			default:
+				// For specific tool name (including handoffs), use the correct format
 				anthropicRequest.ToolChoice = map[string]interface{}{
 					"type": "tool",
 					"name": toolChoice,
 				}
-
 				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
 					fmt.Printf("DEBUG - Setting tool_choice to specific tool: %s\n", toolChoice)
 				}
