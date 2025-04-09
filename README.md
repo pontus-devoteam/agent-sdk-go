@@ -56,6 +56,7 @@
   - [Streaming](#streaming)
   - [OpenAI Tool Definitions](#openai-tool-definitions)
   - [Workflow State Management](#workflow-state-management)
+  - [Bidirectional Agent Flow](#bidirectional-agent-flow)
 - [Examples](#-examples)
 - [Cloud Support](#-cloud-support)
 - [Development](#-development)
@@ -357,14 +358,22 @@ tool := tool.NewFunctionTool(
 Model providers allow you to use different LLM providers.
 
 ```go
-// Create a provider for LM Studio
-provider := lmstudio.NewProvider()
-provider.SetBaseURL("http://127.0.0.1:1234/v1")
-provider.SetDefaultModel("gemma-3-4b-it")
+// Create a provider for OpenAI
+openaiProvider := openai.NewProvider("your-openai-api-key")
+openaiProvider.SetDefaultModel("gpt-4")
 
-// Set as the default provider
+// Create a provider for Anthropic Claude
+anthropicProvider := anthropic.NewProvider("your-anthropic-api-key")
+anthropicProvider.SetDefaultModel("claude-3-haiku-20240307")
+
+// Create a provider for LM Studio
+lmStudioProvider := lmstudio.NewProvider()
+lmStudioProvider.SetBaseURL("http://127.0.0.1:1234/v1")
+lmStudioProvider.SetDefaultModel("gemma-3-4b-it")
+
+// Set a provider as the default provider
 runner := runner.NewRunner()
-runner.WithDefaultProvider(provider)
+runner.WithDefaultProvider(openaiProvider) // or anthropicProvider or lmStudioProvider
 ```
 
 ## 🔧 Advanced Features
@@ -405,6 +414,46 @@ result, err := runner.RunSync(frontendAgent, &runner.RunOptions{
 ```
 
 See the complete example in [examples/multi_agent_example](./examples/multi_agent_example).
+
+</details>
+
+### Bidirectional Agent Flow
+
+<details>
+<summary>Create agents that can hand off tasks and receive results back</summary>
+
+Bidirectional agent flow allows agents to delegate tasks to other agents and receive results back once the tasks are complete. This enables more complex workflows with proper task context management.
+
+```go
+// Create specialized agents
+orchestratorAgent := agent.NewAgent("Orchestrator")
+orchestratorAgent.SetModelProvider(provider)
+orchestratorAgent.WithModel("gpt-4")
+orchestratorAgent.SetSystemInstructions("You coordinate tasks and analyze results.")
+
+workerAgent := agent.NewAgent("Worker")
+workerAgent.SetModelProvider(provider)
+workerAgent.WithModel("gpt-3.5-turbo")
+workerAgent.SetSystemInstructions("You process data and return results.")
+workerAgent.WithTools(processingTool)
+
+// Set up bidirectional handoffs
+orchestratorAgent.WithHandoffs(workerAgent)
+workerAgent.WithHandoffs(orchestratorAgent)  // Allow worker to return to orchestrator
+
+// Run the orchestrator agent
+result, err := runner.RunSync(orchestratorAgent, &runner.RunOptions{
+    Input: "Analyze this data: [complex data]",
+    MaxTurns: 10,
+})
+```
+
+Key components of bidirectional flow:
+- `TaskID`: Unique identifier for tracking tasks across agents
+- `ReturnToAgent`: Specifies which agent to return to after task completion
+- `IsTaskComplete`: Flag indicating whether the task is complete
+
+See the complete example in [examples/bidirectional_flow_example](./examples/bidirectional_flow_example).
 
 </details>
 
@@ -582,6 +631,8 @@ The repository includes several examples to help you get started:
 | [OpenAI Multi-Agent Example](./examples/openai_multi_agent_example) | Illustrates multi-agent functionality using OpenAI models, with proper tool calling and streaming support |
 | [Anthropic Example](./examples/anthropic_example) | Demonstrates how to use the Anthropic Claude API with tool calling capabilities |
 | [Anthropic Handoff Example](./examples/anthropic_handoff_example) | Shows how to implement agent handoffs with Anthropic Claude models |
+| [Bidirectional Flow Example](./examples/bidirectional_flow_example) | Demonstrates bidirectional agent communication with task delegation and return handoffs |
+| [TypeScript Code Review Example](./examples/typescript_code_review_example) | Shows a practical application with specialized code review agents that collaborate using bidirectional handoffs |
 | [Workflow Example](./examples/workflow_example) | Demonstrates advanced workflow management with state persistence between agent executions |
 
 ### Running Examples with a Local LLM
@@ -628,16 +679,28 @@ The repository includes several examples to help you get started:
 
 ### Debugging
 
-You can enable debug output for provider API calls by setting the appropriate environment variable:
+You can enable debug output for various components by setting the appropriate environment variable:
 
-For OpenAI:
+For general debugging (runner and core components):
 ```bash
-OPENAI_DEBUG=1 go run examples/openai_multi_agent_example/main.go
+DEBUG=1 go run examples/bidirectional_flow_example/main.go
 ```
 
-For Anthropic:
+For provider-specific debugging:
 ```bash
+# OpenAI provider debugging
+OPENAI_DEBUG=1 go run examples/openai_multi_agent_example/main.go
+
+# Anthropic provider debugging
 ANTHROPIC_DEBUG=1 go run examples/anthropic_example/main.go
+
+# LM Studio provider debugging
+LMSTUDIO_DEBUG=1 go run examples/multi_agent_example/main.go
+```
+
+You can also combine multiple debug flags:
+```bash
+DEBUG=1 OPENAI_DEBUG=1 go run examples/typescript_code_review_example/main.go
 ```
 
 ## 🛠️ Development
