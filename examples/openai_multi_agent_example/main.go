@@ -18,7 +18,7 @@ func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	// Set API key
-	apiKey := "your-api-key-here"
+	apiKey := "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"
 
 	// Check if env var is set and use that instead if available
 	if envKey := os.Getenv("OPENAI_API_KEY"); envKey != "" {
