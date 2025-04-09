@@ -83,7 +83,10 @@ func TestAnthropicModel(t *testing.T) {
 					"output_tokens": 5,
 				},
 			}
-			json.NewEncoder(w).Encode(response)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+				return
+			}
 		}))
 		defer server.Close()
 
@@ -135,7 +138,10 @@ func TestAnthropicModel(t *testing.T) {
 					"output_tokens": 5,
 				},
 			}
-			json.NewEncoder(w).Encode(response)
+			if err := json.NewEncoder(w).Encode(response); err != nil {
+				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+				return
+			}
 		}))
 		defer server.Close()
 
@@ -189,12 +195,15 @@ func TestAnthropicModel(t *testing.T) {
 		// Create a test server that returns an error
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			if err := json.NewEncoder(w).Encode(map[string]interface{}{
 				"error": map[string]interface{}{
 					"type":    "invalid_request_error",
 					"message": "Test error message",
 				},
-			})
+			}); err != nil {
+				http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+				return
+			}
 		}))
 		defer server.Close()
 

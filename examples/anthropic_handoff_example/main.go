@@ -103,8 +103,12 @@ Always use the handoff_to_[Agent] tools to delegate tasks to the specialized age
 	r.WithDefaultProvider(provider)
 
 	// Enable debug output if needed
-	os.Setenv("ANTHROPIC_DEBUG", "1")
-	os.Setenv("DEBUG", "1")
+	if err := os.Setenv("ANTHROPIC_DEBUG", "1"); err != nil {
+		log.Printf("Warning: Failed to set ANTHROPIC_DEBUG environment variable: %v", err)
+	}
+	if err := os.Setenv("DEBUG", "1"); err != nil {
+		log.Printf("Warning: Failed to set DEBUG environment variable: %v", err)
+	}
 
 	// Run the workflow
 	fmt.Println("\nStarting the code review workflow with Anthropic Claude...")

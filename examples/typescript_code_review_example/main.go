@@ -226,8 +226,12 @@ TASK CONTEXT:
 	fmt.Println("\nStarting the TypeScript function development workflow...")
 
 	// Enable debugging
-	os.Setenv("DEBUG", "1")
-	os.Setenv("OPENAI_DEBUG", "1")
+	if err := os.Setenv("DEBUG", "1"); err != nil {
+		log.Printf("Warning: Failed to set DEBUG environment variable: %v", err)
+	}
+	if err := os.Setenv("OPENAI_DEBUG", "1"); err != nil {
+		log.Printf("Warning: Failed to set OPENAI_DEBUG environment variable: %v", err)
+	}
 
 	// Print debug info about the agents
 	fmt.Printf("DEBUG: Orchestrator agent has %d handoffs configured\n", len(orchestratorAgent.Handoffs))

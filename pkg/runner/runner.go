@@ -2215,45 +2215,50 @@ func (r *Runner) generateHandoffTools(handoffs []AgentType) []interface{} {
 		return nil
 	}
 
-	result := make([]interface{}, len(handoffs))
-	for i, h := range handoffs {
-		// Create a handoff tool definition for each agent
-		result[i] = map[string]interface{}{
+	var tools []interface{}
+	for _, agent := range handoffs {
+		tool := map[string]interface{}{
 			"type": "function",
 			"function": map[string]interface{}{
-				"name":        h.Name,
-				"description": h.Description,
+				"name":        fmt.Sprintf("handoff_to_%s", agent.Name),
+				"description": fmt.Sprintf("Handoff to %s agent", agent.Name),
 				"parameters": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{
 						"input": map[string]interface{}{
 							"type":        "string",
-							"description": "Input to the agent",
+							"description": "Input for the handoff",
+						},
+						"task_id": map[string]interface{}{
+							"type":        "string",
+							"description": "Unique identifier for the task",
+						},
+						"return_to_agent": map[string]interface{}{
+							"type":        "string",
+							"description": "Agent to return to after task completion",
+						},
+						"is_task_complete": map[string]interface{}{
+							"type":        "boolean",
+							"description": "Whether the task is complete",
 						},
 					},
 					"required": []string{"input"},
 				},
 			},
 		}
+		tools = append(tools, tool)
 	}
-
-	return result
+	return tools
 }
 
-// Add handoff tools for the specified handoffs to the request
 func (r *Runner) addHandoffTools(request *model.Request, handoffs []AgentType) {
-	// Add the specified handoffs if there are any
-	if handoffs != nil && len(handoffs) > 0 {
+	if len(handoffs) > 0 {
 		handoffTools := r.generateHandoffTools(handoffs)
 		if len(handoffTools) > 0 && request.Tools == nil {
 			request.Tools = make([]interface{}, 0)
 		}
-		for _, h := range handoffTools {
-			request.Tools = append(request.Tools, h)
-			handoffToolName := fmt.Sprintf("handoff_to_%s", h.(map[string]interface{})["name"].(string))
-			if os.Getenv("DEBUG") == "1" {
-				fmt.Printf("Added handoff tool for agent: %s with name: %s\n", h.(map[string]interface{})["name"].(string), handoffToolName)
-			}
+		for _, tool := range handoffTools {
+			request.Tools = append(request.Tools, tool)
 		}
 	}
 }

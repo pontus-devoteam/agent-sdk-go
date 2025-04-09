@@ -570,7 +570,7 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		anthropicRequest.Tools = tools
 
 		// Add handoff tools from request.Handoffs if available
-		if request.Handoffs != nil && len(request.Handoffs) > 0 {
+		if len(request.Handoffs) > 0 {
 			// Add handoff tools to the request
 			if err := m.addHandoffToolsToRequest(request, &anthropicRequest.Tools); err != nil {
 				return nil, fmt.Errorf("failed to add handoff tools: %w", err)
