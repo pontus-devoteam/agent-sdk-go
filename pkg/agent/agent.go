@@ -2,6 +2,7 @@ package agent
 
 import (
 	"reflect"
+	"strings"
 	"sync"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
@@ -198,21 +199,91 @@ func (a *Agent) AddToolsFromDefinitions(definitions []map[string]interface{}, ex
 
 	for _, definition := range definitions {
 		// Extract the function name
-		functionDef := definition["function"].(map[string]interface{})
-		name := functionDef["name"].(string)
-
-		// Find the execution function
-		executeFn, ok := executeFns[name]
+		function, ok := definition["function"].(map[string]interface{})
 		if !ok {
-			// Skip if no execution function
 			continue
 		}
 
-		// Create the tool
+		name, ok := function["name"].(string)
+		if !ok {
+			continue
+		}
+
+		// Find the execute function
+		executeFn, ok := executeFns[name]
+		if !ok {
+			continue
+		}
+
+		// Create a tool from the definition
 		newTool := tool.CreateToolFromDefinition(definition, executeFn)
+
+		// Add the tool to the list
 		tools = append(tools, newTool)
 	}
 
-	// Add the tools to the agent
+	// Add all the tools to the agent
 	return a.WithTools(tools...)
+}
+
+// WithBidirectionalHandoffs adds agents as handoffs with bidirectional flow support
+func (a *Agent) WithBidirectionalHandoffs(agents ...*Agent) *Agent {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Add each agent to the handoffs list
+	a.Handoffs = append(a.Handoffs, agents...)
+
+	// Add a special "return to delegator" handoff if not already present
+	hasReturnTool := false
+	for _, h := range a.Handoffs {
+		if h.Name == "return_to_delegator" {
+			hasReturnTool = true
+			break
+		}
+	}
+
+	// If we don't have a return tool, create one
+	if !hasReturnTool {
+		returnAgent := NewAgent("return_to_delegator", "Special agent used to return to the delegating agent")
+		a.Handoffs = append(a.Handoffs, returnAgent)
+	}
+
+	return a
+}
+
+// AsTaskDelegator configures this agent as a task delegator with bidirectional flow support
+func (a *Agent) AsTaskDelegator() *Agent {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Add bidirectional flow context to system instructions if not already present
+	if !strings.Contains(a.Instructions, "bidirectional flow") && !strings.Contains(a.Instructions, "return_to_delegator") {
+		a.Instructions += "\n\nYou can delegate tasks to specialized agents and receive results back when they complete.\n"
+		a.Instructions += "When delegating tasks, always specify:\n"
+		a.Instructions += "- A unique task ID for tracking\n"
+		a.Instructions += "- Yourself as the return agent\n"
+		a.Instructions += "- Clear success criteria for task completion\n\n"
+		a.Instructions += "When agents return to you, match the task ID with your delegated tasks and continue your workflow."
+	}
+
+	return a
+}
+
+// AsTaskExecutor configures this agent as a task executor with bidirectional flow support
+func (a *Agent) AsTaskExecutor() *Agent {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Add bidirectional flow context to system instructions if not already present
+	if !strings.Contains(a.Instructions, "bidirectional flow") && !strings.Contains(a.Instructions, "return_to_delegator") {
+		a.Instructions += "\n\nYou can receive tasks from other agents, complete them, and return results.\n"
+		a.Instructions += "When you complete a task, you should:\n"
+		a.Instructions += "- Mark the task as complete\n"
+		a.Instructions += "- Provide clear results\n"
+		a.Instructions += "- Return to the delegating agent using the task ID\n\n"
+		a.Instructions += "If you need clarification, you can return to the delegator with questions, marking the task as incomplete."
+	}
+
+	return a
 }

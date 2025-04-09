@@ -45,6 +45,10 @@ type StreamedRunResult struct {
 
 	// CurrentTurn is the current turn
 	CurrentTurn int
+
+	// Task management
+	ActiveTasks       map[string]*TaskContext
+	DelegationHistory map[string][]string // Agent name -> list of delegatees
 }
 
 // ContentEvent creates a content event

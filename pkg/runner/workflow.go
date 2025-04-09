@@ -3,6 +3,7 @@ package runner
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
@@ -159,7 +160,9 @@ func (r *WorkflowRunner) attemptRecovery(ctx context.Context, agent *agent.Agent
 	}
 
 	// Log recovery attempt
-	fmt.Printf("Attempting recovery from panic: %v\n", rec)
+	if os.Getenv("DEBUG") == "1" {
+		fmt.Printf("Attempting recovery from panic: %v\n", rec)
+	}
 
 	// Save state before recovery attempt
 	if err := r.saveWorkflowState(state); err != nil {
