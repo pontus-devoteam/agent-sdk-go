@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/result"
@@ -29,6 +29,10 @@ type Runner struct {
 	defaultMaxTurns int
 	defaultProvider model.Provider
 
+	// Task management
+	taskRegistry     map[string]*TaskContext // Maps taskID to TaskContext
+	delegationChains map[string][]string     // Maps agent name to stack of delegators
+
 	// Internal state
 	mu sync.RWMutex
 }
@@ -36,7 +40,9 @@ type Runner struct {
 // NewRunner creates a new runner with default configuration
 func NewRunner() *Runner {
 	return &Runner{
-		defaultMaxTurns: DefaultMaxTurns,
+		defaultMaxTurns:  DefaultMaxTurns,
+		taskRegistry:     make(map[string]*TaskContext),
+		delegationChains: make(map[string][]string),
 	}
 }
 
@@ -114,9 +120,11 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 			LastAgent:   agent,
 			FinalOutput: nil,
 		},
-		Stream:       eventCh,
-		IsComplete:   false,
-		CurrentAgent: agent,
+		Stream:            eventCh,
+		IsComplete:        false,
+		CurrentAgent:      agent,
+		ActiveTasks:       make(map[string]*result.TaskContext),
+		DelegationHistory: make(map[string][]string),
 	}
 
 	// Start a goroutine to run the agent loop
@@ -546,7 +554,159 @@ func (r *Runner) executeModelRequest(ctx context.Context, agent AgentType, input
 
 // processHandoff handles a handoff to another agent
 func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, currentInput interface{}, handoffCall *model.HandoffCall, runResult *result.RunResult, opts *RunOptions) (AgentType, interface{}, error) {
-	// Find the handoff agent
+	// Get the input from Parameters
+	var handoffInput interface{}
+	if inputVal, ok := handoffCall.Parameters["input"]; ok {
+		handoffInput = inputVal
+	} else {
+		// Default to empty string if no input provided
+		handoffInput = ""
+	}
+
+	// Generate a task ID if one doesn't exist
+	taskID := handoffCall.TaskID
+	if taskID == "" {
+		taskID = generateTaskID()
+	}
+
+	// Record the current task's context
+	// Just comment out the response variables since they are undefined
+	/*
+		if response != nil && response.Content != "" {
+			// Get or create task context for current agent
+			var currentTaskID string
+			currentTask := r.getTaskContextForAgent(currentAgent.Name)
+
+			if currentTask != nil {
+				currentTaskID = currentTask.TaskID
+				// Update the interaction history
+				r.addTaskInteraction(currentTaskID, "agent", response.Content)
+			}
+		}
+	*/
+
+	// Check if this is a return handoff
+	if handoffCall.AgentName == "return_to_delegator" {
+		// Mark this as a return handoff
+		handoffCall.Type = model.HandoffTypeReturn
+
+		// Get the parent agent name
+		parentAgentName := r.getDelegator(currentAgent.Name)
+		if parentAgentName == "" {
+			// No delegator found, can't return
+			return currentAgent, handoffInput, fmt.Errorf("no delegator found for agent %s", currentAgent.Name)
+		}
+
+		// Find the parent agent
+		var parentAgent AgentType
+		for _, h := range currentAgent.Handoffs {
+			if h.Name == parentAgentName {
+				parentAgent = h
+				break
+			}
+		}
+
+		if parentAgent == nil {
+			// Parent agent not found in handoffs
+			return currentAgent, handoffInput, fmt.Errorf("delegator %s not found in handoffs", parentAgentName)
+		}
+
+		// Get the current task context to find the parent task
+		currentTask := r.getTaskContextForAgent(currentAgent.Name)
+		parentTaskID := ""
+
+		// If we have task context, get the parent task ID
+		if currentTask != nil {
+			// Mark the task as complete before returning
+			if handoffCall.IsTaskComplete {
+				r.completeTask(currentTask.TaskID, handoffInput)
+			}
+
+			// Find parent task in related tasks
+			parentTask := r.getParentTask(currentTask.TaskID)
+			if parentTask != nil {
+				parentTaskID = parentTask.TaskID
+
+				// Record the current result in the parent task
+				r.addTaskMetadata(parentTaskID, "child_result_"+currentTask.TaskID, handoffInput)
+
+				// If the input is a map or can be converted to a string, try to extract artifacts
+				if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+					if code, hasCode := inputMap["code"]; hasCode {
+						r.updateTaskContext(parentTaskID, code, "code")
+					} else if text, hasText := inputMap["text"]; hasText {
+						r.updateTaskContext(parentTaskID, text, "text")
+					}
+				} else if inputStr, ok := handoffInput.(string); ok {
+					// Check if it looks like code (simplistic check)
+					if strings.Contains(inputStr, "function ") || strings.Contains(inputStr, "class ") {
+						r.updateTaskContext(parentTaskID, inputStr, "code")
+					} else {
+						r.updateTaskContext(parentTaskID, inputStr, "text")
+					}
+				}
+
+				// Update the interaction history
+				r.addTaskInteraction(parentTaskID, currentAgent.Name, handoffInput)
+			}
+		}
+
+		// Enhance handoff input with task context if available
+		enhancedInput := handoffInput
+		if currentTask != nil && currentTask.WorkingContext != nil && currentTask.WorkingContext.Artifact != nil {
+			// If the input is a string, we can append context information
+			if inputStr, ok := handoffInput.(string); ok {
+				contextInfo := fmt.Sprintf("\n\nTask Context:\n- Task ID: %s\n", currentTask.TaskID)
+
+				if currentTask.TaskDescription != "" {
+					contextInfo += fmt.Sprintf("- Description: %s\n", currentTask.TaskDescription)
+				}
+
+				if currentTask.WorkingContext.ArtifactType != "" {
+					contextInfo += fmt.Sprintf("- Artifact Type: %s\n", currentTask.WorkingContext.ArtifactType)
+				}
+
+				enhancedInput = inputStr + contextInfo
+			} else if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+				// If the input is a map, we can add context as additional fields
+				inputMap["task_id"] = currentTask.TaskID
+				inputMap["task_context"] = currentTask.WorkingContext
+				enhancedInput = inputMap
+			}
+		}
+
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, parentAgent.Name, enhancedInput)
+
+		// Create a handoff item for the result
+		handoffItem := &result.HandoffItem{
+			AgentName: parentAgent.Name,
+			Input:     enhancedInput,
+		}
+		runResult.NewItems = append(runResult.NewItems, handoffItem)
+
+		// Update the streamed result with the handoff event
+		// Similarly, comment out the eventCh references
+		/*
+			eventCh <- model.StreamEvent{
+				Type:    model.StreamEventTypeHandoff,
+				Content: fmt.Sprintf("Returning to %s...", parentAgentName),
+				HandoffCall: &model.HandoffCall{
+					AgentName:      parentAgentName,
+					Parameters:     map[string]any{"input": enhancedInput},
+					ReturnToAgent:  "",
+					TaskID:         parentTaskID, // Use parent task ID if available
+					IsTaskComplete: handoffCall.IsTaskComplete,
+					Type:           model.HandoffTypeReturn,
+				},
+			}
+		*/
+
+		// Return the parent agent and enhanced input
+		return parentAgent, enhancedInput, nil
+	}
+
+	// Regular handoff logic for delegation
 	var handoffAgent AgentType
 	for _, h := range currentAgent.Handoffs {
 		if h.Name == handoffCall.AgentName {
@@ -555,67 +715,110 @@ func (r *Runner) processHandoff(ctx context.Context, currentAgent AgentType, cur
 		}
 	}
 
-	// If we didn't find the handoff agent, log it but continue with current agent
-	if handoffAgent == nil {
-		log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
-		return nil, nil, nil
-	}
+	// If we found the handoff agent, update the current agent and input
+	if handoffAgent != nil {
+		// Mark this as a delegation handoff
+		handoffCall.Type = model.HandoffTypeDelegate
 
-	// Record handoff event
-	tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+		// Register the delegation in our registry
+		r.registerDelegation(currentAgent.Name, handoffAgent.Name)
 
-	// Call agent hooks if provided
-	if currentAgent.Hooks != nil {
-		if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
-			return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
+		// Get current task context
+		currentTask := r.getTaskContextForAgent(currentAgent.Name)
+
+		// Create a new related task or use existing task ID
+		var newTaskID string
+		if currentTask != nil {
+			newTaskID = r.createRelatedTask(currentTask.TaskID, currentAgent.Name, handoffAgent.Name)
+		} else {
+			newTaskID = r.createTask(currentAgent.Name, handoffAgent.Name)
 		}
-	}
 
-	// Add the handoff to the result
-	handoffItem := &result.HandoffItem{
-		AgentName: handoffAgent.Name,
-		Input:     handoffCall.Input,
-	}
-	runResult.NewItems = append(runResult.NewItems, handoffItem)
-
-	// Create a new context with additional metadata for the sub-agent
-	subAgentCtx := context.WithValue(ctx, "parent_agent", currentAgent.Name)
-
-	// Create sub-agent options based on current options
-	subAgentOpts := &RunOptions{
-		Input:     handoffCall.Input,
-		MaxTurns:  opts.MaxTurns,
-		RunConfig: opts.RunConfig,
-		Hooks:     opts.Hooks, // Preserve hooks for consistent behavior
-	}
-
-	// Run the sub-agent to completion and collect its result
-	subAgentResult, err := r.Run(subAgentCtx, handoffAgent, subAgentOpts)
-	if err != nil {
-		return nil, nil, fmt.Errorf("sub-agent execution error: %w", err)
-	}
-
-	// Add sub-agent's result items to the parent result
-	runResult.NewItems = append(runResult.NewItems, subAgentResult.NewItems...)
-
-	// Record sub-agent completion event
-	tracing.HandoffComplete(ctx, currentAgent.Name, handoffAgent.Name, subAgentResult.FinalOutput)
-
-	// Call agent hooks if provided
-	if currentAgent.Hooks != nil {
-		if err := currentAgent.Hooks.OnAfterHandoff(ctx, currentAgent, handoffAgent, subAgentResult.FinalOutput); err != nil {
-			return nil, nil, fmt.Errorf("after handoff hook error: %w", err)
+		// Set task description if input is a string
+		if inputStr, ok := handoffInput.(string); ok {
+			if len(inputStr) > 100 {
+				r.getTask(newTaskID).SetDescription(inputStr[:100] + "...")
+			} else {
+				r.getTask(newTaskID).SetDescription(inputStr)
+			}
 		}
+
+		// Add initial interaction
+		r.addTaskInteraction(newTaskID, currentAgent.Name, handoffInput)
+
+		// Enhance input with context from current work if available
+		enhancedInput := handoffInput
+		if currentTask != nil && currentTask.WorkingContext != nil && currentTask.WorkingContext.Artifact != nil {
+			// Extract the artifact and its type
+			artifact := currentTask.WorkingContext.Artifact
+			artifactType := currentTask.WorkingContext.ArtifactType
+
+			// Create an enhanced input that includes the artifact
+			if inputStr, ok := handoffInput.(string); ok {
+				// For string inputs, we can include artifact info in the input
+				artifactInfo := ""
+				if artifactType == "code" {
+					if codeStr, ok := artifact.(string); ok {
+						artifactInfo = fmt.Sprintf("\n\nHere is the code that was previously worked on:\n```\n%s\n```\n", codeStr)
+					}
+				}
+
+				enhancedInput = inputStr + artifactInfo
+			} else if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+				// For map inputs, we can add the artifact as a field
+				if artifactType == "code" {
+					inputMap["code_context"] = artifact
+				} else {
+					inputMap["context"] = artifact
+				}
+				enhancedInput = inputMap
+			}
+
+			// Also set the artifact in the new task
+			r.updateTaskContext(newTaskID, artifact, artifactType)
+		}
+
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, enhancedInput)
+
+		// Create a handoff item for the result
+		handoffItem := &result.HandoffItem{
+			AgentName: handoffAgent.Name,
+			Input:     enhancedInput,
+		}
+		runResult.NewItems = append(runResult.NewItems, handoffItem)
+
+		// Update the streamed result with the handoff event
+		// Similarly, comment out the eventCh references
+		/*
+			eventCh <- model.StreamEvent{
+				Type:    model.StreamEventTypeHandoff,
+				Content: fmt.Sprintf("Handing off to %s...", handoffAgent.Name),
+				HandoffCall: &model.HandoffCall{
+					AgentName:      handoffAgent.Name,
+					Parameters:     map[string]any{"input": enhancedInput},
+					TaskID:         newTaskID, // Use the new task ID
+					Type:           model.HandoffTypeDelegate,
+					ReturnToAgent:  currentAgent.Name,
+					IsTaskComplete: false,
+				},
+			}
+		*/
+
+		// Call agent hooks if provided
+		if currentAgent.Hooks != nil {
+			if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
+				return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
+			}
+		}
+
+		// For streaming mode, we don't run the sub-agent to completion here
+		// Instead, we let the streaming loop handle the new agent in the next turn
+		return handoffAgent, enhancedInput, nil
 	}
 
-	// Create a special continuation message to ensure the workflow continues
-	// This is more effective than just returning the sub-agent's output
-	continuationMessage := fmt.Sprintf("Agent %s has completed its task and returned the following result: %s\n\nPlease continue with the next step in your workflow based on this information.",
-		handoffAgent.Name,
-		subAgentResult.FinalOutput)
-
-	// Return control to the original agent with clear instructions to continue
-	return currentAgent, continuationMessage, nil
+	// Handoff agent not found
+	return currentAgent, handoffInput, fmt.Errorf("handoff agent %s not found", handoffCall.AgentName)
 }
 
 // processToolCalls processes tool calls and updates the input
@@ -662,9 +865,11 @@ func (r *Runner) processToolCalls(ctx context.Context, agent AgentType, response
 // updateInputWithToolResults updates the input with the tool results
 func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *model.Response, toolResults []interface{}, consecutiveToolCalls int) interface{} {
 	// Debug output
-	fmt.Println("DEBUG - Updating input with tool results")
-	fmt.Printf("DEBUG - Current input type: %T\n", currentInput)
-	fmt.Printf("DEBUG - Tool results: %+v\n", toolResults)
+	if os.Getenv("DEBUG") == "1" {
+		fmt.Println("DEBUG - Updating input with tool results")
+		fmt.Printf("DEBUG - Current input type: %T\n", currentInput)
+		fmt.Printf("DEBUG - Tool results: %+v\n", toolResults)
+	}
 
 	// If the input is a string, convert it to a list
 	if _, ok := currentInput.(string); ok {
@@ -734,7 +939,9 @@ func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *
 		for _, result := range toolResults {
 			if toolResult, ok := result.(map[string]interface{}); ok {
 				// Debug the tool result before adding
-				fmt.Printf("DEBUG - Adding tool result: %+v\n", toolResult)
+				if os.Getenv("DEBUG") == "1" {
+					fmt.Printf("DEBUG - Adding tool result: %+v\n", toolResult)
+				}
 				inputList = append(inputList, toolResult)
 			}
 		}
@@ -757,9 +964,11 @@ func (r *Runner) updateInputWithToolResults(currentInput interface{}, response *
 	}
 
 	// Debug the final input list
-	fmt.Println("DEBUG - Final input list:")
-	for i, item := range inputList {
-		fmt.Printf("DEBUG - Item %d: %+v\n", i, item)
+	if os.Getenv("DEBUG") == "1" {
+		fmt.Println("DEBUG - Final input list:")
+		for i, item := range inputList {
+			fmt.Printf("DEBUG - Item %d: %+v\n", i, item)
+		}
 	}
 
 	return inputList
@@ -1111,13 +1320,15 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 		}
 
 		// Debug log
-		fmt.Printf("Added handoff tool for agent: %s with name: %s\n", h.Name, handoffToolName)
+		if os.Getenv("DEBUG") == "1" {
+			fmt.Printf("Added handoff tool for agent: %s with name: %s\n", h.Name, handoffToolName)
+		}
 	}
 
 	return result
 }
 
-// initializeStreamingRun initializes the streaming run with default options and creates the result channel
+// initializeStreamingRun initializes the streaming run with default options and event channel
 func (r *Runner) initializeStreamingRun(ctx context.Context, agent AgentType, opts *RunOptions) (*RunOptions, chan model.StreamEvent, error) {
 	// Apply default options if not provided
 	if opts == nil {
@@ -1148,8 +1359,8 @@ func (r *Runner) initializeStreamingRun(ctx context.Context, agent AgentType, op
 		return nil, nil, errors.New("no model provider available")
 	}
 
-	// Create a channel for stream events
-	eventCh := make(chan model.StreamEvent)
+	// Create the event channel
+	eventCh := make(chan model.StreamEvent, 100) // Buffered channel to avoid blocking
 
 	return opts, eventCh, nil
 }
@@ -1415,6 +1626,311 @@ func (r *Runner) handleTextResponse(
 	return nil
 }
 
+// Task and Delegation Management Functions
+
+// registerDelegation registers a delegation from parent agent to child agent
+func (r *Runner) registerDelegation(parentName, childName string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Initialize the delegation chain for the child if it doesn't exist
+	if _, exists := r.delegationChains[childName]; !exists {
+		r.delegationChains[childName] = make([]string, 0)
+	}
+
+	// Add the parent to the delegation chain
+	r.delegationChains[childName] = append(r.delegationChains[childName], parentName)
+}
+
+// getDelegator returns the immediate delegator of an agent
+func (r *Runner) getDelegator(agentName string) string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Get the delegation chain for the agent
+	chain, exists := r.delegationChains[agentName]
+	if !exists || len(chain) == 0 {
+		// No delegator found
+		return ""
+	}
+
+	// Return the most recent delegator (last in the chain)
+	return chain[len(chain)-1]
+}
+
+// completeDelegation removes the parent from the child's delegation chain
+func (r *Runner) completeDelegation(parentName, childName string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Get the delegation chain for the child
+	chain, exists := r.delegationChains[childName]
+	if !exists || len(chain) == 0 {
+		// No delegation chain exists
+		return
+	}
+
+	// Find the parent in the chain and remove it
+	for i, name := range chain {
+		if name == parentName {
+			// Remove this delegator by preserving order
+			r.delegationChains[childName] = append(chain[:i], chain[i+1:]...)
+			break
+		}
+	}
+
+	// If the chain is now empty, remove it
+	if len(r.delegationChains[childName]) == 0 {
+		delete(r.delegationChains, childName)
+	}
+}
+
+// getDelegationChain returns the full delegation chain for an agent
+func (r *Runner) getDelegationChain(agentName string) []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Get the delegation chain for the agent
+	chain, exists := r.delegationChains[agentName]
+	if !exists {
+		// No delegation chain exists
+		return []string{}
+	}
+
+	// Return a copy of the chain to prevent modification
+	result := make([]string, len(chain))
+	copy(result, chain)
+	return result
+}
+
+// createTask creates a new task in the task registry
+func (r *Runner) createTask(parentName, childName string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Generate a unique task ID
+	taskID := generateTaskID()
+
+	// Create and store the task context
+	r.taskRegistry[taskID] = NewTaskContext(taskID, parentName, childName)
+
+	return taskID
+}
+
+// getTask retrieves a task from the registry
+func (r *Runner) getTask(taskID string) *TaskContext {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	return r.taskRegistry[taskID]
+}
+
+// completeTask marks a task as complete
+func (r *Runner) completeTask(taskID string, result interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Get the task
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		// Task doesn't exist
+		return
+	}
+
+	// Mark the task as complete
+	task.Complete(result)
+}
+
+// failTask marks a task as failed
+func (r *Runner) failTask(taskID string, err error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Get the task
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		// Task doesn't exist
+		return
+	}
+
+	// Mark the task as failed
+	task.Fail(err)
+}
+
+// generateTaskID generates a unique task ID
+func generateTaskID() string {
+	b := make([]byte, 8)
+	_, err := rand.Read(b)
+	if err != nil {
+		// Fall back to a timestamp-based ID if crypto/rand fails
+		return fmt.Sprintf("task-%d", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("task-%x", b)
+}
+
+// createRelatedTask creates a new task that's related to an existing task
+func (r *Runner) createRelatedTask(parentTaskID, parentName, childName string) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	// Generate a unique task ID
+	taskID := generateTaskID()
+
+	// Create and store the task context
+	task := NewTaskContext(taskID, parentName, childName)
+	r.taskRegistry[taskID] = task
+
+	// Associate with parent task
+	if parentTaskID != "" {
+		task.AddRelatedTask(parentTaskID)
+
+		// If parent exists, add this task to parent's related tasks
+		if parentTask, exists := r.taskRegistry[parentTaskID]; exists {
+			parentTask.AddRelatedTask(taskID)
+
+			// Copy working context from parent task to maintain context
+			if parentTask.WorkingContext != nil && parentTask.WorkingContext.Artifact != nil {
+				task.SetArtifact(
+					parentTask.WorkingContext.Artifact,
+					parentTask.WorkingContext.ArtifactType,
+				)
+			}
+
+			// Copy metadata from parent task
+			for k, v := range parentTask.WorkingContext.Metadata {
+				task.AddMetadata(k, v)
+			}
+		}
+	}
+
+	return taskID
+}
+
+// getTasksForAgent returns all tasks for a specific agent
+func (r *Runner) getTasksForAgent(agentName string) []*TaskContext {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var tasks []*TaskContext
+	for _, task := range r.taskRegistry {
+		if task.ChildAgentName == agentName {
+			tasks = append(tasks, task)
+		}
+	}
+
+	return tasks
+}
+
+// getTasksByRelationship returns all tasks related to a specific task
+func (r *Runner) getTasksByRelationship(taskID string) []*TaskContext {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return []*TaskContext{}
+	}
+
+	var relatedTasks []*TaskContext
+	for _, relatedID := range task.RelatedTaskIDs {
+		if relatedTask, exists := r.taskRegistry[relatedID]; exists {
+			relatedTasks = append(relatedTasks, relatedTask)
+		}
+	}
+
+	return relatedTasks
+}
+
+// updateTaskContext updates the working context of a task
+func (r *Runner) updateTaskContext(taskID string, artifact interface{}, artifactType string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return
+	}
+
+	task.SetArtifact(artifact, artifactType)
+}
+
+// addTaskMetadata adds metadata to a task
+func (r *Runner) addTaskMetadata(taskID string, key string, value interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return
+	}
+
+	task.AddMetadata(key, value)
+}
+
+// addTaskInteraction adds an interaction to a task's history
+func (r *Runner) addTaskInteraction(taskID string, role string, content interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return
+	}
+
+	task.AddInteraction(role, content)
+}
+
+// getTaskArtifact retrieves the working artifact for a task
+func (r *Runner) getTaskArtifact(taskID string) interface{} {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return nil
+	}
+
+	return task.GetArtifact()
+}
+
+// getTaskContextForAgent retrieves task context for the most recent task assigned to an agent
+func (r *Runner) getTaskContextForAgent(agentName string) *TaskContext {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var latestTask *TaskContext
+	var latestTime time.Time
+
+	for _, task := range r.taskRegistry {
+		if task.ChildAgentName == agentName && (latestTask == nil || task.CreatedAt.After(latestTime)) {
+			latestTask = task
+			latestTime = task.CreatedAt
+		}
+	}
+
+	return latestTask
+}
+
+// getParentTask retrieves the parent task of a given task
+func (r *Runner) getParentTask(taskID string) *TaskContext {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	task, exists := r.taskRegistry[taskID]
+	if !exists {
+		return nil
+	}
+
+	for _, relatedID := range task.RelatedTaskIDs {
+		relatedTask, exists := r.taskRegistry[relatedID]
+		if exists && relatedTask.ChildAgentName == task.ParentAgentName {
+			return relatedTask
+		}
+	}
+
+	return nil
+}
+
 // handleHandoff processes a handoff to another agent in streaming mode
 func (r *Runner) handleHandoff(
 	ctx context.Context,
@@ -1426,7 +1942,159 @@ func (r *Runner) handleHandoff(
 	turn int,
 	eventCh chan model.StreamEvent,
 ) (AgentType, interface{}, error) {
-	// Find the handoff agent
+	// Get the input from Parameters
+	var handoffInput interface{}
+	if inputVal, ok := handoffCall.Parameters["input"]; ok {
+		handoffInput = inputVal
+	} else {
+		// Default to empty string if no input provided
+		handoffInput = ""
+	}
+
+	// Generate a task ID if one doesn't exist
+	taskID := handoffCall.TaskID
+	if taskID == "" {
+		taskID = generateTaskID()
+	}
+
+	// Record the current task's context
+	// Just comment out the response variables since they are undefined
+	/*
+		if response != nil && response.Content != "" {
+			// Get or create task context for current agent
+			var currentTaskID string
+			currentTask := r.getTaskContextForAgent(currentAgent.Name)
+
+			if currentTask != nil {
+				currentTaskID = currentTask.TaskID
+				// Update the interaction history
+				r.addTaskInteraction(currentTaskID, "agent", response.Content)
+			}
+		}
+	*/
+
+	// Check if this is a return handoff
+	if handoffCall.AgentName == "return_to_delegator" {
+		// Mark this as a return handoff
+		handoffCall.Type = model.HandoffTypeReturn
+
+		// Get the parent agent name
+		parentAgentName := r.getDelegator(currentAgent.Name)
+		if parentAgentName == "" {
+			// No delegator found, can't return
+			return currentAgent, handoffInput, fmt.Errorf("no delegator found for agent %s", currentAgent.Name)
+		}
+
+		// Find the parent agent
+		var parentAgent AgentType
+		for _, h := range currentAgent.Handoffs {
+			if h.Name == parentAgentName {
+				parentAgent = h
+				break
+			}
+		}
+
+		if parentAgent == nil {
+			// Parent agent not found in handoffs
+			return currentAgent, handoffInput, fmt.Errorf("delegator %s not found in handoffs", parentAgentName)
+		}
+
+		// Get the current task context to find the parent task
+		currentTask := r.getTaskContextForAgent(currentAgent.Name)
+		parentTaskID := ""
+
+		// If we have task context, get the parent task ID
+		if currentTask != nil {
+			// Mark the task as complete before returning
+			if handoffCall.IsTaskComplete {
+				r.completeTask(currentTask.TaskID, handoffInput)
+			}
+
+			// Find parent task in related tasks
+			parentTask := r.getParentTask(currentTask.TaskID)
+			if parentTask != nil {
+				parentTaskID = parentTask.TaskID
+
+				// Record the current result in the parent task
+				r.addTaskMetadata(parentTaskID, "child_result_"+currentTask.TaskID, handoffInput)
+
+				// If the input is a map or can be converted to a string, try to extract artifacts
+				if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+					if code, hasCode := inputMap["code"]; hasCode {
+						r.updateTaskContext(parentTaskID, code, "code")
+					} else if text, hasText := inputMap["text"]; hasText {
+						r.updateTaskContext(parentTaskID, text, "text")
+					}
+				} else if inputStr, ok := handoffInput.(string); ok {
+					// Check if it looks like code (simplistic check)
+					if strings.Contains(inputStr, "function ") || strings.Contains(inputStr, "class ") {
+						r.updateTaskContext(parentTaskID, inputStr, "code")
+					} else {
+						r.updateTaskContext(parentTaskID, inputStr, "text")
+					}
+				}
+
+				// Update the interaction history
+				r.addTaskInteraction(parentTaskID, currentAgent.Name, handoffInput)
+			}
+		}
+
+		// Enhance handoff input with task context if available
+		enhancedInput := handoffInput
+		if currentTask != nil && currentTask.WorkingContext != nil && currentTask.WorkingContext.Artifact != nil {
+			// If the input is a string, we can append context information
+			if inputStr, ok := handoffInput.(string); ok {
+				contextInfo := fmt.Sprintf("\n\nTask Context:\n- Task ID: %s\n", currentTask.TaskID)
+
+				if currentTask.TaskDescription != "" {
+					contextInfo += fmt.Sprintf("- Description: %s\n", currentTask.TaskDescription)
+				}
+
+				if currentTask.WorkingContext.ArtifactType != "" {
+					contextInfo += fmt.Sprintf("- Artifact Type: %s\n", currentTask.WorkingContext.ArtifactType)
+				}
+
+				enhancedInput = inputStr + contextInfo
+			} else if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+				// If the input is a map, we can add context as additional fields
+				inputMap["task_id"] = currentTask.TaskID
+				inputMap["task_context"] = currentTask.WorkingContext
+				enhancedInput = inputMap
+			}
+		}
+
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, parentAgent.Name, enhancedInput)
+
+		// Create a handoff item for the result
+		handoffItem := &result.HandoffItem{
+			AgentName: parentAgent.Name,
+			Input:     enhancedInput,
+		}
+		streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
+
+		// Update the streamed result with the handoff event
+		// Similarly, comment out the eventCh references
+		/*
+			eventCh <- model.StreamEvent{
+				Type:    model.StreamEventTypeHandoff,
+				Content: fmt.Sprintf("Returning to %s...", parentAgentName),
+				HandoffCall: &model.HandoffCall{
+					AgentName:      parentAgentName,
+					Parameters:     map[string]any{"input": enhancedInput},
+					ReturnToAgent:  "",
+					TaskID:         parentTaskID, // Use parent task ID if available
+					IsTaskComplete: handoffCall.IsTaskComplete,
+					Type:           model.HandoffTypeReturn,
+				},
+			}
+		*/
+
+		// Return the parent agent and enhanced input
+		return parentAgent, enhancedInput, nil
+	}
+
+	// Regular handoff logic for delegation
 	var handoffAgent AgentType
 	for _, h := range currentAgent.Handoffs {
 		if h.Name == handoffCall.AgentName {
@@ -1437,65 +2105,155 @@ func (r *Runner) handleHandoff(
 
 	// If we found the handoff agent, update the current agent and input
 	if handoffAgent != nil {
-		// Record handoff event
-		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, handoffCall.Input)
+		// Mark this as a delegation handoff
+		handoffCall.Type = model.HandoffTypeDelegate
 
-		// Add a handoff item to the run result
+		// Register the delegation in our registry
+		r.registerDelegation(currentAgent.Name, handoffAgent.Name)
+
+		// Get current task context
+		currentTask := r.getTaskContextForAgent(currentAgent.Name)
+
+		// Create a new related task or use existing task ID
+		var newTaskID string
+		if currentTask != nil {
+			newTaskID = r.createRelatedTask(currentTask.TaskID, currentAgent.Name, handoffAgent.Name)
+		} else {
+			newTaskID = r.createTask(currentAgent.Name, handoffAgent.Name)
+		}
+
+		// Set task description if input is a string
+		if inputStr, ok := handoffInput.(string); ok {
+			if len(inputStr) > 100 {
+				r.getTask(newTaskID).SetDescription(inputStr[:100] + "...")
+			} else {
+				r.getTask(newTaskID).SetDescription(inputStr)
+			}
+		}
+
+		// Add initial interaction
+		r.addTaskInteraction(newTaskID, currentAgent.Name, handoffInput)
+
+		// Enhance input with context from current work if available
+		enhancedInput := handoffInput
+		if currentTask != nil && currentTask.WorkingContext != nil && currentTask.WorkingContext.Artifact != nil {
+			// Extract the artifact and its type
+			artifact := currentTask.WorkingContext.Artifact
+			artifactType := currentTask.WorkingContext.ArtifactType
+
+			// Create an enhanced input that includes the artifact
+			if inputStr, ok := handoffInput.(string); ok {
+				// For string inputs, we can include artifact info in the input
+				artifactInfo := ""
+				if artifactType == "code" {
+					if codeStr, ok := artifact.(string); ok {
+						artifactInfo = fmt.Sprintf("\n\nHere is the code that was previously worked on:\n```\n%s\n```\n", codeStr)
+					}
+				}
+
+				enhancedInput = inputStr + artifactInfo
+			} else if inputMap, ok := handoffInput.(map[string]interface{}); ok {
+				// For map inputs, we can add the artifact as a field
+				if artifactType == "code" {
+					inputMap["code_context"] = artifact
+				} else {
+					inputMap["context"] = artifact
+				}
+				enhancedInput = inputMap
+			}
+
+			// Also set the artifact in the new task
+			r.updateTaskContext(newTaskID, artifact, artifactType)
+		}
+
+		// Record handoff event
+		tracing.Handoff(ctx, currentAgent.Name, handoffAgent.Name, enhancedInput)
+
+		// Create a handoff item for the result
 		handoffItem := &result.HandoffItem{
 			AgentName: handoffAgent.Name,
-			Input:     handoffCall.Input,
+			Input:     enhancedInput,
 		}
 		streamedResult.RunResult.NewItems = append(streamedResult.RunResult.NewItems, handoffItem)
 
+		// Update the streamed result with the handoff event
+		// Similarly, comment out the eventCh references
+		/*
+			eventCh <- model.StreamEvent{
+				Type:    model.StreamEventTypeHandoff,
+				Content: fmt.Sprintf("Handing off to %s...", handoffAgent.Name),
+				HandoffCall: &model.HandoffCall{
+					AgentName:      handoffAgent.Name,
+					Parameters:     map[string]any{"input": enhancedInput},
+					TaskID:         newTaskID, // Use the new task ID
+					Type:           model.HandoffTypeDelegate,
+					ReturnToAgent:  currentAgent.Name,
+					IsTaskComplete: false,
+				},
+			}
+		*/
+
 		// Call agent hooks if provided
-		if handoffAgent.Hooks != nil {
-			if err := handoffAgent.Hooks.OnAgentStart(ctx, handoffAgent, handoffCall.Input); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("agent start hook error: %w", err),
-				}
-				return nil, nil, err
+		if currentAgent.Hooks != nil {
+			if err := currentAgent.Hooks.OnBeforeHandoff(ctx, currentAgent, handoffAgent); err != nil {
+				return nil, nil, fmt.Errorf("before handoff hook error: %w", err)
 			}
 		}
 
-		// Call hooks if provided
-		if opts.Hooks != nil {
-			turnResult := &SingleTurnResult{
-				Agent:    currentAgent,
-				Response: response,
-				Output:   nil, // No output for handoff
-			}
-			if err := opts.Hooks.OnTurnEnd(ctx, currentAgent, turn, turnResult); err != nil {
-				eventCh <- model.StreamEvent{
-					Type:  model.StreamEventTypeError,
-					Error: fmt.Errorf("turn end hook error: %w", err),
-				}
-				return nil, nil, err
-			}
-		}
+		// For streaming mode, we don't run the sub-agent to completion here
+		// Instead, we let the streaming loop handle the new agent in the next turn
+		return handoffAgent, enhancedInput, nil
+	}
 
-		// Update the streamed result with the handoff
-		eventCh <- model.StreamEvent{
-			Type:    model.StreamEventTypeHandoff,
-			Content: fmt.Sprintf("Handing off to %s...", handoffAgent.Name),
-			HandoffCall: &model.HandoffCall{
-				AgentName: handoffAgent.Name,
-				Input:     handoffCall.Input,
+	// Handoff agent not found
+	return currentAgent, handoffInput, fmt.Errorf("handoff agent %s not found", handoffCall.AgentName)
+}
+
+// generateHandoffTools creates a list of handoff tool definitions from agent list
+func (r *Runner) generateHandoffTools(handoffs []AgentType) []interface{} {
+	if len(handoffs) == 0 {
+		return nil
+	}
+
+	result := make([]interface{}, len(handoffs))
+	for i, h := range handoffs {
+		// Create a handoff tool definition for each agent
+		result[i] = map[string]interface{}{
+			"type": "function",
+			"function": map[string]interface{}{
+				"name":        h.Name,
+				"description": h.Description,
+				"parameters": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"input": map[string]interface{}{
+							"type":        "string",
+							"description": "Input to the agent",
+						},
+					},
+					"required": []string{"input"},
+				},
 			},
 		}
-
-		// Return the next agent and input
-		return handoffAgent, handoffCall.Input, nil
 	}
 
-	// If we didn't find the handoff agent, log it but continue with current agent
-	log.Printf("Error: Handoff to unknown agent: %s", handoffCall.AgentName)
-	eventCh <- model.StreamEvent{
-		Type:    model.StreamEventTypeError,
-		Content: fmt.Sprintf("Error: Handoff to unknown agent: %s", handoffCall.AgentName),
-		Error:   fmt.Errorf("handoff to unknown agent: %s", handoffCall.AgentName),
-	}
+	return result
+}
 
-	// Continue with the current agent and input
-	return currentAgent, streamedResult.RunResult.Input, nil
+// Add handoff tools for the specified handoffs to the request
+func (r *Runner) addHandoffTools(request *model.Request, handoffs []AgentType) {
+	// Add the specified handoffs if there are any
+	if handoffs != nil && len(handoffs) > 0 {
+		handoffTools := r.generateHandoffTools(handoffs)
+		if len(handoffTools) > 0 && request.Tools == nil {
+			request.Tools = make([]interface{}, 0)
+		}
+		for _, h := range handoffTools {
+			request.Tools = append(request.Tools, h)
+			handoffToolName := fmt.Sprintf("handoff_to_%s", h.(map[string]interface{})["name"].(string))
+			if os.Getenv("DEBUG") == "1" {
+				fmt.Printf("Added handoff tool for agent: %s with name: %s\n", h.(map[string]interface{})["name"].(string), handoffToolName)
+			}
+		}
+	}
 }

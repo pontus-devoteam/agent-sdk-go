@@ -31,8 +31,12 @@ type ToolCall struct {
 
 // HandoffCall represents a handoff call from a model
 type HandoffCall struct {
-	AgentName string
-	Input     string
+	AgentName      string         `json:"agent_name"`
+	Parameters     map[string]any `json:"parameters,omitempty"`
+	Type           string         `json:"type,omitempty"`             // Type of handoff (delegate or return)
+	ReturnToAgent  string         `json:"return_to_agent,omitempty"`  // Agent to return to after task completion
+	TaskID         string         `json:"task_id,omitempty"`          // Unique identifier for the task
+	IsTaskComplete bool           `json:"is_task_complete,omitempty"` // Whether the task is complete
 }
 
 // Usage represents token usage information
@@ -60,6 +64,15 @@ const (
 	StreamEventTypeHandoff  = "handoff"
 	StreamEventTypeDone     = "done"
 	StreamEventTypeError    = "error"
+)
+
+// Handoff types
+const (
+	// HandoffTypeDelegate indicates a delegation handoff to another agent
+	HandoffTypeDelegate = "delegate"
+
+	// HandoffTypeReturn indicates a return handoff to a delegator
+	HandoffTypeReturn = "return"
 )
 
 // Settings configures model-specific parameters
