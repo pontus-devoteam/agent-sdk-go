@@ -158,8 +158,11 @@ func TestResponse(t *testing.T) {
 		},
 	}
 	handoffCall := &model.HandoffCall{
-		AgentName: "handoff_agent",
-		Input:     "Handoff input",
+		AgentName:      "handoff_agent",
+		Parameters:     map[string]any{"input": "Handoff input"},
+		ReturnToAgent:  "",
+		TaskID:         "",
+		IsTaskComplete: false,
 	}
 	usage := &model.Usage{
 		PromptTokens:     100,
@@ -204,8 +207,9 @@ func TestResponse(t *testing.T) {
 		t.Errorf("Response.HandoffCall.AgentName = %s, want handoff_agent", resp.HandoffCall.AgentName)
 	}
 
-	if resp.HandoffCall.Input != "Handoff input" {
-		t.Errorf("Response.HandoffCall.Input = %s, want Handoff input", resp.HandoffCall.Input)
+	input, ok := resp.HandoffCall.Parameters["input"].(string)
+	if !ok || input != "Handoff input" {
+		t.Errorf("Response.HandoffCall.Parameters[\"input\"] = %v, want Handoff input", resp.HandoffCall.Parameters["input"])
 	}
 
 	if resp.Usage == nil {
@@ -278,8 +282,11 @@ func TestStreamEvent(t *testing.T) {
 		},
 	}
 	handoffCall := &model.HandoffCall{
-		AgentName: "handoff_agent",
-		Input:     "Handoff input",
+		AgentName:      "handoff_agent",
+		Parameters:     map[string]any{"input": "Handoff input"},
+		ReturnToAgent:  "",
+		TaskID:         "",
+		IsTaskComplete: false,
 	}
 	response := &model.Response{
 		Content: "Response content",
