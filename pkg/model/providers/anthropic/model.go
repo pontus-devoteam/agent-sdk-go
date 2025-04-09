@@ -572,7 +572,9 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 		// Add handoff tools from request.Handoffs if available
 		if request.Handoffs != nil && len(request.Handoffs) > 0 {
 			// Add handoff tools to the request
-			m.addHandoffToolsToRequest(anthropicRequest, request.Handoffs)
+			if err := m.addHandoffToolsToRequest(request, &anthropicRequest.Tools); err != nil {
+				return nil, fmt.Errorf("failed to add handoff tools: %w", err)
+			}
 		}
 
 		// Anthropic handles tool_choice differently from OpenAI
@@ -622,33 +624,64 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 	return anthropicRequest, nil
 }
 
-// addHandoffToolsToRequest adds handoff tools to the Anthropic request
-func (m *Model) addHandoffToolsToRequest(anthropicRequest *AnthropicMessageRequest, handoffs []interface{}) {
-	if len(handoffs) == 0 {
-		return
+// addHandoffToolsToRequest adds handoff tools to the request
+func (m *Model) addHandoffToolsToRequest(request *model.Request, tools *[]AnthropicTool) error {
+	if request.Handoffs == nil || len(request.Handoffs) == 0 {
+		return nil
 	}
 
-	for _, handoff := range handoffs {
-		// Convert the handoff to an Anthropic tool
-		if handoffTool, ok := handoff.(map[string]interface{}); ok {
-			// It's already in the right format
-			if handoffTool["type"] == "function" && handoffTool["function"] != nil {
-				function := handoffTool["function"].(map[string]interface{})
+	if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+		fmt.Printf("DEBUG - Adding %d handoff tools to request\n", len(request.Handoffs))
+	}
 
-				// Create Anthropic tool format
-				anthropicTool := AnthropicTool{
-					Name:        function["name"].(string),
-					Description: function["description"].(string),
-					InputSchema: function["parameters"].(map[string]interface{}),
-				}
-
-				anthropicRequest.Tools = append(anthropicRequest.Tools, anthropicTool)
-				if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-					fmt.Printf("Added handoff tool to Anthropic request: %s\n", function["name"].(string))
-				}
-			}
+	for _, handoff := range request.Handoffs {
+		handoffMap, ok := handoff.(map[string]interface{})
+		if !ok {
+			return fmt.Errorf("expected handoff to be a map, got %T", handoff)
 		}
+
+		agentName, ok := handoffMap["name"].(string)
+		if !ok {
+			return fmt.Errorf("expected handoff name to be a string, got %T", handoffMap["name"])
+		}
+
+		description, ok := handoffMap["description"].(string)
+		if !ok {
+			return fmt.Errorf("expected handoff description to be a string, got %T", handoffMap["description"])
+		}
+
+		// Create a handoff tool using prefix convention
+		handoffTool := AnthropicTool{
+			Name:        fmt.Sprintf("handoff_to_%s", agentName),
+			Description: description,
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"input": map[string]interface{}{
+						"type":        "string",
+						"description": "Input for the handoff",
+					},
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Unique identifier for the task",
+					},
+					"return_to_agent": map[string]interface{}{
+						"type":        "string",
+						"description": "Agent to return to after task completion",
+					},
+					"is_task_complete": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether the task is complete",
+					},
+				},
+				"required": []string{"input"},
+			},
+		}
+
+		*tools = append(*tools, handoffTool)
 	}
+
+	return nil
 }
 
 // createMessages creates AnthropicMessages from a model.Request.Input
@@ -888,8 +921,9 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 			}
 
 			// Check if this is a handoff call
-			if checkIfHandoffCall(&toolCall, response) {
-				// If it's a handoff, it's already been handled by checkIfHandoffCall
+			handoffCall, isHandoff := m.checkIfHandoffCall(&toolCall)
+			if isHandoff {
+				response.HandoffCall = handoffCall
 				continue
 			}
 
@@ -921,8 +955,9 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 			}
 
 			// Check if this is a handoff call
-			if checkIfHandoffCall(&toolCall, response) {
-				// If it's a handoff, it's already been handled by checkIfHandoffCall
+			handoffCall, isHandoff := m.checkIfHandoffCall(&toolCall)
+			if isHandoff {
+				response.HandoffCall = handoffCall
 				continue
 			}
 
@@ -938,86 +973,59 @@ func (m *Model) parseResponse(anthropicResponse *AnthropicMessageResponse) (*mod
 	return response, nil
 }
 
-// checkIfHandoffCall checks if a tool call is a handoff and updates the response if it is
-func checkIfHandoffCall(toolCall *model.ToolCall, response *model.Response) bool {
-	// Check various patterns for handoff tools
-	if strings.HasPrefix(strings.ToLower(toolCall.Name), "handoff_to_") {
+// checkIfHandoffCall checks if a tool call is a handoff call
+func (m *Model) checkIfHandoffCall(toolCall *model.ToolCall) (*model.HandoffCall, bool) {
+	// Check if this is a handoff call by checking if the name starts with "handoff_to_"
+	if strings.HasPrefix(toolCall.Name, "handoff_to_") {
 		// Extract the agent name from the tool name
 		agentName := strings.TrimPrefix(toolCall.Name, "handoff_to_")
-		var input string
 
-		// Get input from parameters
+		if os.Getenv("ANTHROPIC_DEBUG") == "1" {
+			fmt.Printf("DEBUG - Detected handoff call to agent: %s\n", agentName)
+		}
+
+		// Extract input from parameters
+		var input string
 		if inputVal, ok := toolCall.Parameters["input"].(string); ok {
 			input = inputVal
 		} else {
-			// Generate an input from all parameters
+			// If not a string or not found, convert parameters to JSON
 			inputBytes, _ := json.Marshal(toolCall.Parameters)
 			input = string(inputBytes)
 		}
 
-		response.HandoffCall = &model.HandoffCall{
-			AgentName: agentName,
-			Input:     input,
+		// Create a handoff call
+		handoffCall := &model.HandoffCall{
+			AgentName:      agentName,
+			Parameters:     map[string]any{"input": input},
+			Type:           model.HandoffTypeDelegate,
+			ReturnToAgent:  "", // Will be set by the runner
+			TaskID:         "", // Will be generated by the runner if not provided
+			IsTaskComplete: false,
 		}
 
-		if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-			fmt.Printf("DEBUG - Detected handoff to agent: %s\n", agentName)
+		// Check if this is a return handoff
+		if agentName == "return_to_delegator" || strings.EqualFold(agentName, "return") {
+			handoffCall.Type = model.HandoffTypeReturn
 		}
 
-		return true
-	} else if strings.HasPrefix(strings.ToLower(toolCall.Name), "handoff") {
-		// Extract the agent name from the arguments
-		if agentName, ok := toolCall.Parameters["agent"].(string); ok {
-			input := ""
-			if inputVal, ok := toolCall.Parameters["input"].(string); ok {
-				input = inputVal
-			} else {
-				// Generate an input from the remaining arguments
-				inputMap := make(map[string]interface{})
-				for k, v := range toolCall.Parameters {
-					if k != "agent" {
-						inputMap[k] = v
-					}
-				}
-				inputBytes, _ := json.Marshal(inputMap)
-				input = string(inputBytes)
-			}
-
-			response.HandoffCall = &model.HandoffCall{
-				AgentName: agentName,
-				Input:     input,
-			}
-
-			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-				fmt.Printf("DEBUG - Detected handoff to agent: %s\n", agentName)
-			}
-
-			return true
+		// Add optional fields if provided in parameters
+		if taskID, ok := toolCall.Parameters["task_id"].(string); ok && taskID != "" {
+			handoffCall.TaskID = taskID
 		}
-	} else if strings.Contains(strings.ToLower(toolCall.Name), "agent") {
-		// It might be trying to call an agent directly
-		possibleAgentName := strings.Replace(strings.ToLower(toolCall.Name), "_agent", " agent", -1)
-		possibleAgentName = title(possibleAgentName)
 
-		// Only use this heuristic if the name ends with "Agent"
-		if strings.HasSuffix(possibleAgentName, "Agent") {
-			// Generate an input from all the arguments
-			inputBytes, _ := json.Marshal(toolCall.Parameters)
-
-			response.HandoffCall = &model.HandoffCall{
-				AgentName: possibleAgentName,
-				Input:     string(inputBytes),
-			}
-
-			if os.Getenv("ANTHROPIC_DEBUG") == "1" {
-				fmt.Printf("DEBUG - Detected handoff to agent: %s\n", possibleAgentName)
-			}
-
-			return true
+		if returnTo, ok := toolCall.Parameters["return_to_agent"].(string); ok && returnTo != "" {
+			handoffCall.ReturnToAgent = returnTo
 		}
+
+		if isComplete, ok := toolCall.Parameters["is_task_complete"].(bool); ok {
+			handoffCall.IsTaskComplete = isComplete
+		}
+
+		return handoffCall, true
 	}
 
-	return false
+	return nil, false
 }
 
 // title converts a string to title case (first letter of each word capitalized)
