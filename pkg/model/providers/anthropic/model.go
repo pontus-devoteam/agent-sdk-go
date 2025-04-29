@@ -94,6 +94,7 @@ type AnthropicStreamResponse struct {
 type AnthropicDelta struct {
 	Type         string `json:"type"`
 	Text         string `json:"text,omitempty"`
+	PartialJson  string `json:"partial_json,omitempty"`
 	StopReason   string `json:"stop_reason,omitempty"`
 	StopSequence string `json:"stop_sequence,omitempty"`
 }
@@ -364,8 +365,13 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 	// Read the response as a stream
 	reader := bufio.NewReader(httpResponse.Body)
 	tokenCount := 0
-	var content strings.Builder
-	var currentToolCall *model.ToolCall
+	var (
+		content         strings.Builder
+		currentToolCall *model.ToolCall
+		toolCalls       []model.ToolCall
+		handoffCall     *model.HandoffCall
+		done            bool
+	)
 
 	for {
 		// Check if the context is cancelled
@@ -422,23 +428,38 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 
 		case "content_block_start":
 			// Content block start event
-			if streamResp.ContentBlock != nil && streamResp.ContentBlock.Type == "text" {
-				// Reset the content builder
-				content.Reset()
+			if streamResp.ContentBlock != nil {
+				switch streamResp.ContentBlock.Type {
+				case "text":
+					// Reset the content builder
+					content.Reset()
+				case "tool_use":
+					currentToolCall = &model.ToolCall{
+						ID:           streamResp.ContentBlock.ID,
+						Name:         streamResp.ContentBlock.Name,
+						Parameters:   map[string]interface{}{},
+						RawParameter: strings.Builder{},
+					}
+				}
 			}
 			continue
 
 		case "content_block_delta":
 			// Content block delta event
-			if streamResp.Delta != nil && streamResp.Delta.Type == "text_delta" {
-				// Append the text
-				content.WriteString(streamResp.Delta.Text)
-				tokenCount++
+			if streamResp.Delta != nil {
+				switch streamResp.Delta.Type {
+				case "text_delta":
+					// Append the text
+					content.WriteString(streamResp.Delta.Text)
+					tokenCount++
 
-				// Send a content event
-				eventChan <- model.StreamEvent{
-					Type:    model.StreamEventTypeContent,
-					Content: streamResp.Delta.Text,
+					// Send a content event
+					eventChan <- model.StreamEvent{
+						Type:    model.StreamEventTypeContent,
+						Content: streamResp.Delta.Text,
+					}
+				case "input_json_delta":
+					currentToolCall.RawParameter.WriteString(streamResp.Delta.PartialJson)
 				}
 			}
 			continue
@@ -447,43 +468,40 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 			// Content block stop event
 			continue
 
-		case "tool_use_start":
-			// Tool start event
-			if len(streamResp.Message.ToolUse) > 0 {
-				toolUse := streamResp.Message.ToolUse[0]
-
-				// Create a new tool call
-				currentToolCall = &model.ToolCall{
-					ID:         toolUse.ID,
-					Name:       toolUse.Name,
-					Parameters: toolUse.Input,
-				}
-			}
-			continue
-
-		case "tool_use_delta":
-			// Tool delta event (we'll handle this if needed)
-			continue
-
-		case "tool_use_stop":
-			// Tool stop event
-			if currentToolCall != nil {
-				// Send a tool call event
-				eventChan <- model.StreamEvent{
-					Type:     model.StreamEventTypeToolCall,
-					ToolCall: currentToolCall,
-				}
-
-				// Reset the current tool call
-				currentToolCall = nil
-			}
-			continue
-
 		case "message_delta":
 			// Message delta event
-			if streamResp.Delta != nil && streamResp.Delta.StopReason != "" {
-				// End of message
-				break
+			if streamResp.Delta != nil {
+				switch streamResp.Delta.StopReason {
+				case "end_turn":
+					done = true
+				case "tool_use":
+					rawInput := currentToolCall.RawParameter.String()
+					if rawInput != "" {
+						if err := json.Unmarshal([]byte(rawInput), &currentToolCall.Parameters); err != nil {
+							return err
+						}
+					}
+					// Check if this is a handoff call
+					var isHandoff bool
+					handoffCall, isHandoff = m.checkIfHandoffCall(currentToolCall)
+					if isHandoff {
+						eventChan <- model.StreamEvent{
+							Type:        model.StreamEventTypeHandoff,
+							HandoffCall: handoffCall,
+						}
+						continue
+					} else {
+						toolCalls = append(toolCalls, *currentToolCall)
+						eventChan <- model.StreamEvent{
+							Type:     model.StreamEventTypeToolCall,
+							ToolCall: currentToolCall,
+						}
+					}
+					break
+				default:
+					// End of message
+					break
+				}
 			}
 			continue
 
@@ -511,7 +529,12 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 	// Final done event
 	eventChan <- model.StreamEvent{
 		Type: model.StreamEventTypeDone,
-		Done: true,
+		Response: &model.Response{
+			Content:     content.String(),
+			ToolCalls:   toolCalls,
+			HandoffCall: handoffCall,
+		},
+		Done: done,
 	}
 
 	return nil
@@ -562,19 +585,16 @@ func (m *Model) constructRequest(request *model.Request) (*AnthropicMessageReque
 	}
 
 	// Handle tools if provided
-	if len(request.Tools) > 0 {
+	if len(request.Tools) > 0 || len(request.Handoffs) > 0 {
 		tools, err := m.createTools(request.Tools)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create tools: %w", err)
 		}
 		anthropicRequest.Tools = tools
 
-		// Add handoff tools from request.Handoffs if available
-		if len(request.Handoffs) > 0 {
-			// Add handoff tools to the request
-			if err := m.addHandoffToolsToRequest(request, &anthropicRequest.Tools); err != nil {
-				return nil, fmt.Errorf("failed to add handoff tools: %w", err)
-			}
+		// Add handoff tools to the request
+		if err := m.addHandoffToolsToRequest(request, &anthropicRequest.Tools); err != nil {
+			return nil, fmt.Errorf("failed to add handoff tools: %w", err)
 		}
 
 		// Anthropic handles tool_choice differently from OpenAI
@@ -639,20 +659,23 @@ func (m *Model) addHandoffToolsToRequest(request *model.Request, tools *[]Anthro
 		if !ok {
 			return fmt.Errorf("expected handoff to be a map, got %T", handoff)
 		}
-
-		agentName, ok := handoffMap["name"].(string)
+		function, ok := handoffMap["function"].(map[string]interface{})
 		if !ok {
-			return fmt.Errorf("expected handoff name to be a string, got %T", handoffMap["name"])
+			return fmt.Errorf("expected handoff to be a map, got %T", handoff)
+		}
+		agentName, ok := function["name"].(string)
+		if !ok {
+			return fmt.Errorf("expected handoff name to be a string, got %T", function["name"])
 		}
 
-		description, ok := handoffMap["description"].(string)
+		description, ok := function["description"].(string)
 		if !ok {
-			return fmt.Errorf("expected handoff description to be a string, got %T", handoffMap["description"])
+			return fmt.Errorf("expected handoff description to be a string, got %T", function["description"])
 		}
 
 		// Create a handoff tool using prefix convention
 		handoffTool := AnthropicTool{
-			Name:        fmt.Sprintf("handoff_to_%s", agentName),
+			Name:        agentName,
 			Description: description,
 			InputSchema: map[string]interface{}{
 				"type": "object",
