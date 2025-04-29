@@ -156,6 +156,8 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 			// Update the current turn and agent
 			streamedResult.CurrentTurn = turn
 			streamedResult.CurrentAgent = currentAgent
+			streamedResult.CurrentInput = currentInput
+			streamedResult.ContinueLoop = false
 
 			// Call turn start hooks
 			if opts.Hooks != nil {
@@ -216,6 +218,11 @@ func (r *Runner) RunStreaming(ctx context.Context, agent AgentType, opts *RunOpt
 				eventCh,
 				&consecutiveToolCalls,
 			)
+
+			if err == nil && streamedResult.ContinueLoop {
+				currentInput = streamedResult.CurrentInput
+				continue
+			}
 
 			// If the error is nil, we may need to update currentAgent and currentInput
 			// Typically this happens after a handoff
@@ -1403,10 +1410,6 @@ func (r *Runner) processModelStream(
 	eventCh chan model.StreamEvent,
 	consecutiveToolCalls *int,
 ) error {
-	var content string
-	var toolCalls []model.ToolCall
-	var handoffCall *model.HandoffCall
-
 	for event := range modelStream {
 		// Check for errors
 		if event.Error != nil {
@@ -1420,31 +1423,28 @@ func (r *Runner) processModelStream(
 		// Process the event based on its type
 		switch event.Type {
 		case model.StreamEventTypeContent:
-			// Append to content
-			content += event.Content
 			// Forward the event
 			eventCh <- event
 
 		case model.StreamEventTypeToolCall:
-			// Add to tool calls
-			if event.ToolCall != nil {
-				toolCalls = append(toolCalls, *event.ToolCall)
-			}
 			// Forward the event
 			eventCh <- event
 
 		case model.StreamEventTypeHandoff:
-			// Set handoff call
-			handoffCall = event.HandoffCall
 			// Forward the event
 			eventCh <- event
 
 		case model.StreamEventTypeDone:
 			// Create the final response
 			response := &model.Response{
-				Content:     content,
-				ToolCalls:   toolCalls,
-				HandoffCall: handoffCall,
+				Content:     "",
+				ToolCalls:   []model.ToolCall{},
+				HandoffCall: nil,
+			}
+			if event.Response != nil {
+				response.Content = event.Response.Content
+				response.ToolCalls = event.Response.ToolCalls
+				response.HandoffCall = event.Response.HandoffCall
 			}
 
 			// Call agent hooks if provided
@@ -1464,12 +1464,12 @@ func (r *Runner) processModelStream(
 			}
 
 			// Handle handoff if applicable
-			if handoffCall != nil {
+			if response.HandoffCall != nil {
 				// Process handoff and prepare for next turn
 				nextAgent, _, err := r.handleHandoff(
 					ctx,
 					currentAgent,
-					handoffCall,
+					response.HandoffCall,
 					response,
 					opts,
 					streamedResult,
@@ -1486,8 +1486,22 @@ func (r *Runner) processModelStream(
 				return nil // Exit the event loop to start the next turn
 			}
 
-			// Handle regular text response
-			if response.Content != "" {
+			// Check if we have tool calls
+			if len(response.ToolCalls) > 0 {
+				streamedResult.CurrentInput, streamedResult.ContinueLoop, *consecutiveToolCalls = r.processToolCalls(
+					ctx,
+					currentAgent,
+					response,
+					streamedResult.CurrentInput,
+					*consecutiveToolCalls,
+					streamedResult.RunResult,
+					turn,
+					opts,
+				)
+				if streamedResult.ContinueLoop {
+					return nil
+				}
+			} else if response.Content != "" {
 				return r.handleTextResponse(ctx, currentAgent, response, opts, streamedResult, turn, eventCh)
 			}
 
