@@ -2,6 +2,7 @@ package model
 
 import (
 	"context"
+	"strings"
 )
 
 // Request represents a request to a model
@@ -24,9 +25,10 @@ type Response struct {
 
 // ToolCall represents a tool call from a model
 type ToolCall struct {
-	ID         string
-	Name       string
-	Parameters map[string]interface{}
+	ID           string
+	Name         string
+	Parameters   map[string]interface{}
+	RawParameter strings.Builder
 }
 
 // HandoffCall represents a handoff call from a model
