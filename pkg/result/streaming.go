@@ -43,6 +43,12 @@ type StreamedRunResult struct {
 	// CurrentAgent is the current agent
 	CurrentAgent *agent.Agent
 
+	// CurrentInput is the current input
+	CurrentInput any
+
+	// ContinueLoop is continue stream request
+	ContinueLoop bool
+
 	// CurrentTurn is the current turn
 	CurrentTurn int
 
