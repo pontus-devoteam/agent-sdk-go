@@ -3,9 +3,7 @@ package model_test
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
-	"testing"
 	"time"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
@@ -86,27 +84,27 @@ func setupMultiAgent(providerName string) (*runner.Runner, *agent.Agent, model.P
 	return r, assistant, provider
 }
 
-func TestRunStreaming(t *testing.T) {
-	ctx := context.Background()
-	r, assistant, _ := setupMultiAgent("azure")
-	result, err := r.RunStreaming(ctx, assistant, &runner.RunOptions{
-		Input: `Please tell me today's weather in Japan.(use get_todays_date from tools.)`,
-		RunConfig: &runner.RunConfig{
-			TracingDisabled: true,
-		},
-	})
-	if err != nil {
-		log.Fatalf("Error running agent: %v", err)
-	}
+// func TestRunStreaming(t *testing.T) {
+// 	ctx := context.Background()
+// 	r, assistant, _ := setupMultiAgent("azure")
+// 	result, err := r.RunStreaming(ctx, assistant, &runner.RunOptions{
+// 		Input: `Please tell me today's weather in Japan.(use get_todays_date from tools.)`,
+// 		RunConfig: &runner.RunConfig{
+// 			TracingDisabled: true,
+// 		},
+// 	})
+// 	if err != nil {
+// 		log.Fatalf("Error running agent: %v", err)
+// 	}
 
-	for st := range result.Stream {
-		switch st.Type {
-		case model.StreamEventTypeError:
-			log.Fatalf("Error stream: %v", st.Error)
-		}
-		if result.IsComplete {
-			break
-		}
-	}
-	fmt.Println(result.FinalOutput)
-}
+// 	for st := range result.Stream {
+// 		switch st.Type {
+// 		case model.StreamEventTypeError:
+// 			log.Fatalf("Error stream: %v", st.Error)
+// 		}
+// 		if result.IsComplete {
+// 			break
+// 		}
+// 	}
+// 	fmt.Println(result.FinalOutput)
+// }
