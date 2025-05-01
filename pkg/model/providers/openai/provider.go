@@ -3,11 +3,24 @@ package openai
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
 )
+
+type APIType string
+
+const (
+	APITypeOpenAI  APIType = "OPEN_AI"
+	APITypeAzure   APIType = "AZURE"
+	APITypeAzureAD APIType = "AZURE_AD"
+)
+
+func isAzure(apiType APIType) bool {
+	return apiType == APITypeAzure || apiType == APITypeAzureAD
+}
 
 const (
 	// DefaultBaseURL is the default base URL for the OpenAI API
@@ -24,12 +37,13 @@ const (
 
 	// DefaultRetryAfter is the default time to wait before retrying a rate limited request
 	DefaultRetryAfter = 1 * time.Second
+
+	DefaultAPIVersion = "2023-05-15"
 )
 
 // Provider implements model.Provider for OpenAI
 type Provider struct {
 	// Configuration
-	BaseURL      string
 	APIKey       string
 	Organization string
 	HTTPClient   *http.Client
@@ -44,6 +58,9 @@ type Provider struct {
 	RetryAfter time.Duration // Time to wait before retrying
 
 	// Internal state
+	baseURL       string
+	apiType       APIType
+	apiVersion    string
 	mu            sync.RWMutex
 	requestCount  int
 	tokenCount    int
@@ -54,8 +71,7 @@ type Provider struct {
 // NewOpenAIProvider creates a new Provider with default settings
 func NewOpenAIProvider(apiKey string) *Provider {
 	return &Provider{
-		BaseURL: DefaultBaseURL,
-		APIKey:  apiKey,
+		APIKey: apiKey,
 		HTTPClient: &http.Client{
 			Timeout: 120 * time.Second,
 		},
@@ -65,6 +81,9 @@ func NewOpenAIProvider(apiKey string) *Provider {
 		RetryAfter:    DefaultRetryAfter,
 		lastResetTime: time.Now(),
 		rateLimiter:   time.NewTicker(time.Minute / time.Duration(DefaultRPM)),
+		baseURL:       DefaultBaseURL,
+		apiType:       APITypeOpenAI,
+		apiVersion:    DefaultAPIVersion,
 	}
 }
 
@@ -123,13 +142,29 @@ func (p *Provider) WithRetryConfig(maxRetries int, retryAfter time.Duration) *Pr
 func (p *Provider) SetBaseURL(baseURL string) *Provider {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.BaseURL = baseURL
+	p.baseURL = baseURL
 	return p
 }
 
 // SetDefaultModel sets the default model for the provider
 func (p *Provider) SetDefaultModel(modelName string) *Provider {
 	return p.WithDefaultModel(modelName)
+}
+
+// SetAPIType sets the api type for the provider
+func (p *Provider) SetAPIType(apiType APIType) *Provider {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.apiType = apiType
+	return p
+}
+
+// SetAPIType sets the api version for the provider
+func (p *Provider) SetAPIVersion(apiVersion string) *Provider {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.apiVersion = apiVersion
+	return p
 }
 
 // GetModel returns a model by name
@@ -205,6 +240,23 @@ func (p *Provider) ResetRateLimiter() {
 	p.requestCount = 0
 	p.tokenCount = 0
 	p.lastResetTime = time.Now()
+}
+
+func (p *Provider) buildURL(suffix string, model string) string {
+	if isAzure(p.apiType) {
+		return p.buildAzureURL(suffix, model)
+	}
+
+	return fmt.Sprintf("%s%s", p.baseURL, suffix)
+}
+
+func (p *Provider) buildAzureURL(suffix string, model string) string {
+	baseURL := p.baseURL
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	return fmt.Sprintf("%s/openai/deployments/%s%s?api-version=%s",
+		baseURL, model, suffix, p.apiVersion,
+	)
 }
 
 // NewProvider creates a new provider with default settings, requires an API key
