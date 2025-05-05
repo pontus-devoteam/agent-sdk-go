@@ -32,7 +32,7 @@ The example shows how to create and configure an OpenAI provider with:
 provider := openai.NewProvider(apiKey)
 
 // Set the default model
-provider.SetDefaultModel("gpt-3.5-turbo")
+provider.SetDefaultModel("gpt-4o-mini")
 
 // Configure rate limits (requests per minute, tokens per minute)
 provider.WithRateLimit(50, 100000)
@@ -115,4 +115,4 @@ Simply specify the model name:
 
 ```go
 assistant.WithModel("gpt-4-turbo")
-``` 
+```

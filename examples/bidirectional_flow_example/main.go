@@ -27,13 +27,13 @@ func main() {
 	provider := openai.NewProvider(apiKey)
 
 	// Set GPT model as the default model
-	provider.SetDefaultModel("gpt-3.5-turbo")
+	provider.SetDefaultModel("gpt-4o-mini")
 
 	// Configure retry settings
 	provider.WithRetryConfig(3, 2*time.Second)
 
 	fmt.Println("Provider configured with:")
-	fmt.Println("- Model:", "gpt-3.5-turbo")
+	fmt.Println("- Model:", "gpt-4o-mini")
 	fmt.Println("- Max retries:", 3)
 
 	// Create tools
@@ -89,7 +89,7 @@ func main() {
 	// Create the orchestrator agent
 	orchestratorAgent := agent.NewAgent("Orchestrator")
 	orchestratorAgent.SetModelProvider(provider)
-	orchestratorAgent.WithModel("gpt-3.5-turbo")
+	orchestratorAgent.WithModel("gpt-4o-mini")
 	orchestratorAgent.WithTools(getCurrentTime)
 
 	// Add system instructions and configure as task delegator
@@ -197,7 +197,7 @@ IMPORTANT:
 func createResearchAgent(provider *openai.Provider, searchTool, timeTool tool.Tool) *agent.Agent {
 	researchAgent := agent.NewAgent("ResearchAgent")
 	researchAgent.SetModelProvider(provider)
-	researchAgent.WithModel("gpt-3.5-turbo")
+	researchAgent.WithModel("gpt-4o-mini")
 	researchAgent.WithTools(searchTool, timeTool)
 
 	// Add system instructions and configure as task executor
@@ -225,7 +225,7 @@ When you complete your task, return to the delegating agent with your research f
 func createSummaryAgent(provider *openai.Provider, timeTool tool.Tool) *agent.Agent {
 	summaryAgent := agent.NewAgent("SummaryAgent")
 	summaryAgent.SetModelProvider(provider)
-	summaryAgent.WithModel("gpt-3.5-turbo")
+	summaryAgent.WithModel("gpt-4o-mini")
 	summaryAgent.WithTools(timeTool)
 
 	// Add system instructions and configure as task executor
@@ -255,7 +255,7 @@ When you complete your task, return to the delegating agent with your summary th
 func createFactCheckAgent(provider *openai.Provider, searchTool, timeTool tool.Tool) *agent.Agent {
 	factCheckAgent := agent.NewAgent("FactCheckAgent")
 	factCheckAgent.SetModelProvider(provider)
-	factCheckAgent.WithModel("gpt-3.5-turbo")
+	factCheckAgent.WithModel("gpt-4o-mini")
 	factCheckAgent.WithTools(searchTool, timeTool)
 
 	// Add system instructions and configure as task executor
