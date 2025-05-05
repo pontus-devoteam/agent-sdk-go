@@ -38,7 +38,7 @@ func main() {
 	provider := openai.NewProvider(apiKey)
 
 	// Choose a model based on what's available
-	modelName := "gpt-4o-mini" // Can be changed to gpt-4, gpt-3.5-turbo, etc.
+	modelName := "gpt-4o-mini" // Can be changed to gpt-4, gpt-4o-mini, etc.
 	provider.SetDefaultModel(modelName)
 
 	// Configure rate limits
@@ -149,7 +149,7 @@ func createOrchestratorAgent(provider *openai.Provider, getWorkflowStateInfo, up
 	orchestratorAgent.SetModelProvider(provider)
 	orchestratorAgent.WithModel(modelName)
 	orchestratorAgent.WithTools(getWorkflowStateInfo, updateWorkflowState)
-	orchestratorAgent.SetSystemInstructions(`You are an orchestrator agent that coordinates a code review workflow. 
+	orchestratorAgent.SetSystemInstructions(`You are an orchestrator agent that coordinates a code review workflow.
 Your job is to manage the workflow by delegating tasks to specialized agents in the correct sequence.
 
 WORKFLOW PROCESS:

@@ -47,7 +47,7 @@ func TestOpenAIProvider(t *testing.T) {
 
 	t.Run("GetModel", func(t *testing.T) {
 		provider := openai.NewProvider("test-key")
-		provider.WithDefaultModel("gpt-3.5-turbo")
+		provider.WithDefaultModel("gpt-4o-mini")
 
 		openaiModel, err := provider.GetModel("gpt-4")
 		assert.NoError(t, err)
@@ -58,7 +58,7 @@ func TestOpenAIProvider(t *testing.T) {
 		openaiModel, err = provider.GetModel("")
 		assert.NoError(t, err)
 		assert.NotNil(t, openaiModel)
-		assert.Equal(t, "gpt-3.5-turbo", openaiModel.(*openai.Model).ModelName)
+		assert.Equal(t, "gpt-4o-mini", openaiModel.(*openai.Model).ModelName)
 	})
 }
 
@@ -76,7 +76,7 @@ func TestOpenAIModel(t *testing.T) {
 				"id":      "test-id",
 				"object":  "chat.completion",
 				"created": time.Now().Unix(),
-				"model":   "gpt-3.5-turbo",
+				"model":   "gpt-4o-mini",
 				"choices": []map[string]interface{}{
 					{
 						"index": 0,
@@ -100,7 +100,7 @@ func TestOpenAIModel(t *testing.T) {
 		// Create provider and model
 		provider := openai.NewProvider("test-key")
 		provider.SetBaseURL(server.URL)
-		openaiModel, err := provider.GetModel("gpt-3.5-turbo")
+		openaiModel, err := provider.GetModel("gpt-4o-mini")
 		assert.NoError(t, err)
 
 		// Test request
@@ -133,7 +133,7 @@ func TestOpenAIModel(t *testing.T) {
 				"id":      "test-id",
 				"object":  "chat.completion",
 				"created": time.Now().Unix(),
-				"model":   "gpt-3.5-turbo",
+				"model":   "gpt-4o-mini",
 				"choices": []map[string]interface{}{
 					{
 						"index": 0,
@@ -164,7 +164,7 @@ func TestOpenAIModel(t *testing.T) {
 		// Create provider and model
 		provider := openai.NewProvider("test-key")
 		provider.SetBaseURL(server.URL)
-		openaiModel, err := provider.GetModel("gpt-3.5-turbo")
+		openaiModel, err := provider.GetModel("gpt-4o-mini")
 		assert.NoError(t, err)
 
 		// Create a test tool
@@ -212,7 +212,7 @@ func TestOpenAIModel(t *testing.T) {
 		provider := openai.NewProvider("test-key")
 		provider.SetBaseURL(server.URL)
 		provider.WithRetryConfig(1, time.Millisecond) // Set low retry count for test
-		openaiModel, err := provider.GetModel("gpt-3.5-turbo")
+		openaiModel, err := provider.GetModel("gpt-4o-mini")
 		assert.NoError(t, err)
 
 		// Test request
@@ -260,7 +260,7 @@ func TestOpenAIModel(t *testing.T) {
 		// Create provider and model
 		provider := openai.NewProvider("test-key")
 		provider.SetBaseURL(server.URL)
-		openaiModel, err := provider.GetModel("gpt-3.5-turbo")
+		openaiModel, err := provider.GetModel("gpt-4o-mini")
 		assert.NoError(t, err)
 
 		// Test streaming request

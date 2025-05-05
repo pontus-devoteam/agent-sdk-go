@@ -24,7 +24,7 @@ func main() {
 	provider := openai.NewProvider(apiKey)
 
 	// Configure the provider
-	provider.SetDefaultModel("gpt-3.5-turbo")
+	provider.SetDefaultModel("gpt-4o-mini")
 
 	// Customize rate limits if needed (adjust these based on your OpenAI tier)
 	provider.WithRateLimit(50, 100000) // 50 requests per minute, 100,000 tokens per minute
@@ -33,7 +33,7 @@ func main() {
 	provider.WithRetryConfig(3, 2*time.Second)
 
 	fmt.Println("Provider configured with:")
-	fmt.Println("- Model:", "gpt-3.5-turbo")
+	fmt.Println("- Model:", "gpt-4o-mini")
 	fmt.Println("- Rate limit:", "50 requests/min, 100,000 tokens/min")
 	fmt.Println("- Max retries:", 3)
 
@@ -76,7 +76,7 @@ func main() {
 	// Create an agent
 	assistant := agent.NewAgent("OpenAI Assistant")
 	assistant.SetModelProvider(provider)
-	assistant.WithModel("gpt-3.5-turbo")
+	assistant.WithModel("gpt-4o-mini")
 	assistant.SetSystemInstructions("You are a helpful assistant that can provide information and answer questions.")
 	assistant.WithTools(getCurrentTimeTool)
 
