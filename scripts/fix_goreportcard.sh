@@ -47,8 +47,8 @@ fi
 
 echo "Initializing Go module..."
 cd "${REPO_ROOT}"
-go mod init github.com/pontus-devoteam/agent-sdk-go
-echo "replace github.com/pontus-devoteam/agent-sdk-go => ${REPO_ROOT}" >> go.mod
+go mod init github.com/Muhammadhamd/agent-sdk-go/
+echo "replace github.com/Muhammadhamd/agent-sdk-go/ => ${REPO_ROOT}" >> go.mod
 go mod tidy
 echo "✅ Go module setup completed"
 
@@ -121,4 +121,4 @@ fi
 
 echo "====== All checks completed ======"
 echo "Your codebase should now pass Go Report Card checks."
-echo "Visit https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go to see your score." 
+echo "Visit https://goreportcard.com/report/github.com/Muhammadhamd/agent-sdk-go/ to see your score." 

@@ -1,8 +1,8 @@
 package result
 
 import (
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 )
 
 // RunItem represents an item generated during a run

@@ -3,7 +3,7 @@ package model_test
 import (
 	"testing"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 )
 
 // TestRequest tests creating a model request

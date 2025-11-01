@@ -24,7 +24,7 @@ jobs:
             mv go.mod go.mod.bak
           fi
           # Initialize a new module directly in the current directory
-          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod init github.com/Muhammadhamd/agent-sdk-go/
           # Run go mod tidy to discover dependencies
           go mod tidy
 
@@ -92,7 +92,7 @@ jobs:
           if [ -f go.mod ]; then
             mv go.mod go.mod.bak
           fi
-          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod init github.com/Muhammadhamd/agent-sdk-go/
           go mod tidy
 
       - name: Run gosec security scanner
@@ -126,7 +126,7 @@ jobs:
           if [ -f go.mod ]; then
             mv go.mod go.mod.bak
           fi
-          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod init github.com/Muhammadhamd/agent-sdk-go/
           go mod tidy
           
           # Install required tools

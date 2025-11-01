@@ -3,8 +3,8 @@ package runner
 import (
 	"context"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/result"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/result"
 )
 
 // SingleTurnResult contains the result of a single turn

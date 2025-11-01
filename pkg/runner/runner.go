@@ -12,10 +12,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/result"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/tracing"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/result"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/tool"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/tracing"
 )
 
 const (
@@ -1300,12 +1300,15 @@ func (r *Runner) prepareHandoffs(handoffs []AgentType) []interface{} {
 	result := make([]interface{}, len(handoffs))
 	for i, h := range handoffs {
 		handoffToolName := fmt.Sprintf("handoff_to_%s", h.Name)
-
+		desc := h.Description
+		if desc == "" {
+			desc = fmt.Sprintf("Handoff the conversation to the %s. Use this when a query requires expertise from %s.", h.Name, h.Name)
+		}
 		result[i] = map[string]interface{}{
 			"type": "function",
 			"function": map[string]interface{}{
 				"name":        handoffToolName,
-				"description": fmt.Sprintf("Handoff the conversation to the %s. Use this when a query requires expertise from %s.", h.Name, h.Name),
+				"description": desc,
 				"parameters": map[string]interface{}{
 					"type": "object",
 					"properties": map[string]interface{}{

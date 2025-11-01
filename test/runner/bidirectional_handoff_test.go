@@ -3,8 +3,8 @@ package runner_test
 import (
 	"testing"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 	"github.com/stretchr/testify/assert"
 )
 
