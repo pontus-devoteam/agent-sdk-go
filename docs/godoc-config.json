@@ -1,7 +1,7 @@
 {
   "title": "Agent SDK Go",
   "description": "Go implementation of an Agent SDK for building AI agents with LLM providers",
-  "rootPackage": "github.com/pontus-devoteam/agent-sdk-go",
+  "rootPackage": "github.com/Muhammadhamd/agent-sdk-go/",
   "sections": [
     {
       "name": "Core",

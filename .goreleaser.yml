@@ -71,4 +71,4 @@ release:
     Commit: {{ .Commit }}
     Date: {{ .Date }}
 
-    For more information, visit [pontus-devoteam/agent-sdk-go](https://github.com/pontus-devoteam/agent-sdk-go) 
+    For more information, visit [pontus-devoteam/agent-sdk-go](github.com/Muhammadhamd/agent-sdk-go/) 

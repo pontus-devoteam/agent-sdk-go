@@ -24,7 +24,7 @@ jobs:
           if [ -f go.mod ]; then
             mv go.mod go.mod.bak
           fi
-          go mod init github.com/pontus-devoteam/agent-sdk-go
+          go mod init github.com/Muhammadhamd/agent-sdk-go/
           go mod tidy
 
       - name: Install pkgsite (modern godoc)
@@ -44,7 +44,7 @@ jobs:
           
           # Fetch the documentation HTML
           mkdir -p api-docs
-          wget -r -np -k -p -P api-docs http://localhost:6060/github.com/pontus-devoteam/agent-sdk-go
+          wget -r -np -k -p -P api-docs http://localhost:6060/github.com/Muhammadhamd/agent-sdk-go/
           
           # Stop the server
           kill $PID
@@ -68,7 +68,7 @@ jobs:
             "name": "agent-sdk-go",
             "version": "${GITHUB_REF#refs/tags/}",
             "generated_date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
-            "repository": "https://github.com/pontus-devoteam/agent-sdk-go",
+            "repository": "github.com/Muhammadhamd/agent-sdk-go/",
             "release_notes_url": "https://github.com/Muhammadhamd/agent-sdk-go/releases/tag/${GITHUB_REF#refs/tags/}"
           }
           EOF

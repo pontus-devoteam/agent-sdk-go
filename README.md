@@ -16,14 +16,14 @@
 
 <p align="center">
     <a href="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/code-quality.yml"><img src="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality"></a>
-    <a href="https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go"><img src="https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go" alt="Go Report Card"></a>
-    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version"></a>
-    <a href="https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go"><img src="https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg" alt="PkgGoDev"></a><br>
+    <a href="https://goreportcard.com/report/github.com/Muhammadhamd/agent-sdk-go/"><img src="https://goreportcard.com/badge/github.com/Muhammadhamd/agent-sdk-go/" alt="Go Report Card"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/Muhammadhamd/agent-sdk-go" alt="Go Version"></a>
+    <a href="https://pkg.go.dev/github.com/Muhammadhamd/agent-sdk-go/"><img src="https://pkg.go.dev/badge/github.com/Muhammadhamd/agent-sdk-go/.svg" alt="PkgGoDev"></a><br>
     <a href="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/codeql-analysis.yml"><img src="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
-    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License"></a>
-    <a href="https://github.com/Muhammadhamd/agent-sdk-go/stargazers"><img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars"></a>
-    <a href="https://github.com/Muhammadhamd/agent-sdk-go/graphs/contributors"><img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors"></a>
-    <a href="https://github.com/Muhammadhamd/agent-sdk-go/commits/main"><img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Muhammadhamd/agent-sdk-go" alt="License"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/stargazers"><img src="https://img.shields.io/github/stars/Muhammadhamd/agent-sdk-go" alt="Stars"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/graphs/contributors"><img src="https://img.shields.io/github/contributors/Muhammadhamd/agent-sdk-go" alt="Contributors"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/commits/main"><img src="https://img.shields.io/github/last-commit/Muhammadhamd/agent-sdk-go" alt="Last Commit"></a>
 </p>
 
 <p align="center">
@@ -90,7 +90,7 @@ There are several ways to add this module to your project:
 ### Option 1: Using `go get` (Recommended)
 
 ```bash
-go get github.com/pontus-devoteam/agent-sdk-go
+go get github.com/Muhammadhamd/agent-sdk-go/
 ```
 
 ### Option 2: Add to your imports and use `go mod tidy`
@@ -115,7 +115,7 @@ go get github.com/pontus-devoteam/agent-sdk-go
 
 Add the following line to your `go.mod` file:
 ```
-require github.com/pontus-devoteam/agent-sdk-go latest
+require github.com/Muhammadhamd/agent-sdk-go/ latest
 ```
 
 Then run:
@@ -140,14 +140,14 @@ If you're starting a new project:
 
 3. Install the Agent SDK:
    ```bash
-   go get github.com/pontus-devoteam/agent-sdk-go
+   go get github.com/Muhammadhamd/agent-sdk-go/
    ```
 
 ### Troubleshooting
 
 - If you encounter version conflicts, you can specify a version:
   ```bash
-  go get github.com/pontus-devoteam/agent-sdk-go@v0.1.0  # Replace with desired version
+  go get github.com/Muhammadhamd/agent-sdk-go/@v0.1.0  # Replace with desired version
   ```
 
 - For private repositories or local development, consider using Go workspaces or replace directives in your go.mod file.

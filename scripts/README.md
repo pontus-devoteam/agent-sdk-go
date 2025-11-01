@@ -4,7 +4,7 @@ This directory contains utility scripts for the Agent SDK Go project.
 
 ## Go Report Card Fixer
 
-The `fix_goreportcard.sh` script identifies and fixes common issues reported by [Go Report Card](https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go).
+The `fix_goreportcard.sh` script identifies and fixes common issues reported by [Go Report Card](https://goreportcard.com/report/github.com/Muhammadhamd/agent-sdk-go/).
 
 ### Usage
 
