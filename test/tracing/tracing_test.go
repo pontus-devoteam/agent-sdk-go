@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/tracing"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/tracing"
 )
 
 // Helper function to create a temporary trace file
@@ -326,7 +326,7 @@ package tracing_test
 import (
 	"testing"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 )
 
 // Test that just passes

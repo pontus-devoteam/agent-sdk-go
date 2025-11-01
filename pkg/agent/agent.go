@@ -5,8 +5,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/tool"
 )
 
 // Agent represents an AI agent with specific configuration

@@ -15,20 +15,20 @@
 </p>
 
 <p align="center">
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml"><img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/code-quality.yml"><img src="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/code-quality.yml/badge.svg" alt="Code Quality"></a>
     <a href="https://goreportcard.com/report/github.com/pontus-devoteam/agent-sdk-go"><img src="https://goreportcard.com/badge/github.com/pontus-devoteam/agent-sdk-go" alt="Go Report Card"></a>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/go.mod"><img src="https://img.shields.io/github/go-mod/go-version/pontus-devoteam/agent-sdk-go" alt="Go Version"></a>
     <a href="https://pkg.go.dev/github.com/pontus-devoteam/agent-sdk-go"><img src="https://pkg.go.dev/badge/github.com/pontus-devoteam/agent-sdk-go.svg" alt="PkgGoDev"></a><br>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml"><img src="https://github.com/pontus-devoteam/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License"></a>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/stargazers"><img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars"></a>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/graphs/contributors"><img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors"></a>
-    <a href="https://github.com/pontus-devoteam/agent-sdk-go/commits/main"><img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/codeql-analysis.yml"><img src="https://github.com/Muhammadhamd/agent-sdk-go/actions/workflows/codeql-analysis.yml/badge.svg" alt="CodeQL"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/LICENSE"><img src="https://img.shields.io/github/license/pontus-devoteam/agent-sdk-go" alt="License"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/stargazers"><img src="https://img.shields.io/github/stars/pontus-devoteam/agent-sdk-go" alt="Stars"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/graphs/contributors"><img src="https://img.shields.io/github/contributors/pontus-devoteam/agent-sdk-go" alt="Contributors"></a>
+    <a href="https://github.com/Muhammadhamd/agent-sdk-go/commits/main"><img src="https://img.shields.io/github/last-commit/pontus-devoteam/agent-sdk-go" alt="Last Commit"></a>
 </p>
 
 <p align="center">
   <a href="https://go-agent.org/#waitlist">☁️ Cloud Waitlist</a> •
-  <a href="https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE">📜 License</a>
+  <a href="https://github.com/Muhammadhamd/agent-sdk-go/blob/main/LICENSE">📜 License</a>
 </p>
 
 <p align="center">
@@ -98,10 +98,10 @@ go get github.com/pontus-devoteam/agent-sdk-go
 1. Add imports to your Go files:
    ```go
    import (
-       "github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-       "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
-       "github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
-       "github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
+       "github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+       "github.com/Muhammadhamd/agent-sdk-go/pkg/model/providers/lmstudio"
+       "github.com/Muhammadhamd/agent-sdk-go/pkg/runner"
+       "github.com/Muhammadhamd/agent-sdk-go/pkg/tool"
        // Import other packages as needed
    )
    ```
@@ -164,10 +164,10 @@ import (
     "fmt"
     "log"
 
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/openai"  // or providers/lmstudio or providers/anthropic
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
-    "github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
+    "github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+    "github.com/Muhammadhamd/agent-sdk-go/pkg/model/providers/openai"  // or providers/lmstudio or providers/anthropic
+    "github.com/Muhammadhamd/agent-sdk-go/pkg/runner"
+    "github.com/Muhammadhamd/agent-sdk-go/pkg/tool"
 )
 
 func main() {
@@ -756,7 +756,7 @@ Contributions are welcome! Please see [CONTRIBUTING.md](./CONTRIBUTING.md) for d
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](https://github.com/pontus-devoteam/agent-sdk-go/blob/main/LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](https://github.com/Muhammadhamd/agent-sdk-go/blob/main/LICENSE) file for details.
 
 ## 🙏 Acknowledgements
 
@@ -777,6 +777,6 @@ For production deployments, we're developing a fully managed cloud service. Join
 ## 👥 Community & Support
 
 - **Website**: [go-agent.org](https://go-agent.org)
-- **GitHub Issues**: [Report bugs or request features](https://github.com/pontus-devoteam/agent-sdk-go/issues)
-- **Discussions**: [Join the conversation](https://github.com/pontus-devoteam/agent-sdk-go/discussions)
+- **GitHub Issues**: [Report bugs or request features](https://github.com/Muhammadhamd/agent-sdk-go/issues)
+- **Discussions**: [Join the conversation](https://github.com/Muhammadhamd/agent-sdk-go/discussions)
 - **Waitlist**: [Join the cloud service waitlist](https://go-agent.org/#waitlist) 

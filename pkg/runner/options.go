@@ -3,7 +3,7 @@ package runner
 import (
 	"time"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 )
 
 // RunOptions configures a run

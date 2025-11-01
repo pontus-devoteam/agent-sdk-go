@@ -17,7 +17,7 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
 )
 
 // Model implements the model.Model interface for OpenAI

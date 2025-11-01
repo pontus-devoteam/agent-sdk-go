@@ -105,7 +105,7 @@ function DocumentationViewer({ version = 'latest' }) {
             <ul>
               {section.packages.map(pkg => (
                 <li key={pkg}>
-                  <a href={`/docs/api/${version}/api-docs/github.com/pontus-devoteam/agent-sdk-go/${pkg}`}>
+                  <a href={`/docs/api/${version}/api-docs/github.com/Muhammadhamd/agent-sdk-go/${pkg}`}>
                     {pkg}
                   </a>
                 </li>

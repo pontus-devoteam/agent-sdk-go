@@ -69,7 +69,7 @@ jobs:
             "version": "${GITHUB_REF#refs/tags/}",
             "generated_date": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
             "repository": "https://github.com/pontus-devoteam/agent-sdk-go",
-            "release_notes_url": "https://github.com/pontus-devoteam/agent-sdk-go/releases/tag/${GITHUB_REF#refs/tags/}"
+            "release_notes_url": "https://github.com/Muhammadhamd/agent-sdk-go/releases/tag/${GITHUB_REF#refs/tags/}"
           }
           EOF
           

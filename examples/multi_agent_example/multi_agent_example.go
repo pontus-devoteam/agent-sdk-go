@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/agent"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model/providers/lmstudio"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/tool"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/agent"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model/providers/lmstudio"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/runner"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/tool"
 )
 
 // TimeTool provides functionality to get the current time in a specific format.

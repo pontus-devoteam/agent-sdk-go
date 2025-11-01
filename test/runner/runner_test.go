@@ -3,9 +3,9 @@ package runner_test
 import (
 	"testing"
 
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/model"
-	"github.com/pontus-devoteam/agent-sdk-go/pkg/runner"
-	"github.com/pontus-devoteam/agent-sdk-go/test/mocks"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/model"
+	"github.com/Muhammadhamd/agent-sdk-go/pkg/runner"
+	"github.com/Muhammadhamd/agent-sdk-go/test/mocks"
 )
 
 // TestNewRunner tests the creation of a new runner
