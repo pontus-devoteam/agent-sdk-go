@@ -173,7 +173,7 @@ func (m *Model) getResponseOnce(ctx context.Context, request *model.Request) (*m
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/chat/completions", m.Provider.BaseURL),
+		m.Provider.buildURL("/chat/completions", m.ModelName),
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
@@ -181,11 +181,7 @@ func (m *Model) getResponseOnce(ctx context.Context, request *model.Request) (*m
 	}
 
 	// Set headers
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.Provider.APIKey))
-	if m.Provider.Organization != "" {
-		httpRequest.Header.Set("OpenAI-Organization", m.Provider.Organization)
-	}
+	m.setHeader(httpRequest)
 
 	// Send the request
 	httpResponse, err := m.Provider.HTTPClient.Do(httpRequest)
@@ -317,7 +313,7 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 	httpRequest, err := http.NewRequestWithContext(
 		ctx,
 		http.MethodPost,
-		fmt.Sprintf("%s/chat/completions", m.Provider.BaseURL),
+		m.Provider.buildURL("/chat/completions", m.ModelName),
 		bytes.NewReader(requestBody),
 	)
 	if err != nil {
@@ -325,11 +321,7 @@ func (m *Model) streamResponseOnce(ctx context.Context, request *model.Request, 
 	}
 
 	// Set headers
-	httpRequest.Header.Set("Content-Type", "application/json")
-	httpRequest.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.Provider.APIKey))
-	if m.Provider.Organization != "" {
-		httpRequest.Header.Set("OpenAI-Organization", m.Provider.Organization)
-	}
+	m.setHeader(httpRequest)
 
 	// Send the request
 	httpResponse, err := m.Provider.HTTPClient.Do(httpRequest)
@@ -638,6 +630,18 @@ func (m *Model) constructRequest(request *model.Request) (*ChatCompletionRequest
 	applyModelSettings(chatRequest, request.Settings)
 
 	return chatRequest, nil
+}
+
+func (m *Model) setHeader(req *http.Request) {
+	req.Header.Set("Content-Type", "application/json")
+	if m.Provider.apiType == APITypeOpenAI || m.Provider.apiType == APITypeAzureAD {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", m.Provider.APIKey))
+	} else {
+		req.Header.Set("api-key", m.Provider.APIKey)
+	}
+	if m.Provider.Organization != "" {
+		req.Header.Set("OpenAI-Organization", m.Provider.Organization)
+	}
 }
 
 // addSystemMessage adds a system message to the chat request if provided
