@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -83,7 +83,7 @@ jobs:
           tar -czf godoc-output.tar.gz api-docs package-metadata.json godoc-config.json go-version.txt package-list.txt
 
       - name: Checkout React website repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
         with:
           repository: pontus-devoteam/agent-sdk-website # Replace with your actual React repo
           token: ${{ secrets.WEBSITE_REPO_TOKEN }} # Create this secret in your repo settings
