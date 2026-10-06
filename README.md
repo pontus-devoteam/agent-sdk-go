@@ -874,6 +874,7 @@ The repository includes several examples to help you get started:
 | [Bedrock Example](./examples/bedrock_example) | Runs an agent on Amazon Bedrock using the Converse API |
 | [Multi-Provider Example](./examples/multi_provider_example) | One workflow where each agent runs on a different LLM provider |
 | [MCP Example](./examples/mcp_example) | Gives an agent the tools of an MCP server over stdio or HTTP |
+| [Parallel Search MCP Example](./examples/parallel_search_example) | Searches the web and extracts page excerpts over HTTP without API keys |
 | [Custom Tracer Example](./examples/custom_tracer_example) | Replaces the default file tracer with a custom implementation |
 | [Advanced Workflow Example](./examples/openai_advanced_workflow) | Demonstrates advanced workflow management with state persistence between agent executions |
 

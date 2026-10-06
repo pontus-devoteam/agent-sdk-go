@@ -86,3 +86,11 @@ fmt.Println(result.Text())
 
 See
 [examples/mcp_example](https://github.com/pontus-espe/agent-sdk-go/tree/master/examples/mcp_example).
+
+## Anonymous web search and fetch
+
+For a runnable HTTP example with no API keys, see
+[Parallel Search MCP](https://github.com/pontus-espe/agent-sdk-go/tree/master/examples/parallel_search_example).
+It discovers and executes web search and page extraction tools directly. The
+example also shows how to attach those tools to an agent; model inference is
+configured separately.
